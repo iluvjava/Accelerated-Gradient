@@ -71,7 +71,7 @@ end
 
 
 
-function prox(SmoothFxn::NonsmoothFxn, arg::AbstractArray{T}):: AbstractArray where {T <: Number} 
+function prox(this::NonsmoothFxn, arg::AbstractArray{T}):: AbstractArray where {T <: Number} 
     throw(
         ErrorException(
             "Abstract type function get overloaded, method not yet implemented for $(type(this)). "+

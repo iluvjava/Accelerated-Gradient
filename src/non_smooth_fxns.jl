@@ -3,8 +3,9 @@
 ### ============================================================================
 """
 ## It is
-A struct that refers to the function x -> m*abs(x). It is also convex so m 
-cannot be negative. 
+A struct that refers to the function x -> m*abs(x) where m > 0. 
+It is the one-norm with a positive constant multiplier. 
+
 ### Fields
 - `multiplier`: `m` the multiplier on every entries of the one norm, has to be 
 non-negative. 
