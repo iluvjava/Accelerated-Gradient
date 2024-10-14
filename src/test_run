@@ -1,0 +1,15 @@
+include("abstract_types.jl")
+include("non_smooth_fxns.jl")
+include("smooth_fxn.jl")
+include("proximal_gradient.jl")
+
+
+using Test
+
+@testset "Test Set 1" begin 
+    # sanity test 
+    @test true
+
+    
+
+end

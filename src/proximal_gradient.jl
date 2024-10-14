@@ -1,15 +1,8 @@
-using LinearAlgebra, ProgressMeter, Distributed
-
-include("abstract_types.jl")
-include("non_smooth_fxns.jl")
-include("smooth_fxn.jl")
-
-
 """
 This is a struct that models the results obtain from an execution of the 
 prox gradient method. We see to store the following results and each result
 is mapped to the iteration number of the algorithm.
-### Fields
+## Fields
 
 - `gradient_mappings::Dict{Int, Vector}`: gradient mapping is the difference between the solutions from the current 
 iterations and the previous iterations. It's collect sparsely according the policy parameter *collection_interval*. 
@@ -30,11 +23,11 @@ mutable struct ProxGradResults
     
     gradient_mappings::Dict{Int, Vector}        # collect sparsely 
     gradient_mapping_norm::Vector{Real}         # always collect
-    objective_vals::Vector{Real}                # Always collect
+    objective_vals::Dict{Int, Real}             # collected sparsely
     solns::Dict{Int, Vector}                    # collect sparsely 
     soln::Vector                                # the final solution
     step_sizes::Vector{Real}                    # always collect. 
-    flags::Int                                  # collect at last
+    flags::Int                                   # collect at last
     collection_interval::Int                    # specified on initializations. 
     itr_counter::Int                            # updated within this class. 
     
@@ -46,7 +39,7 @@ mutable struct ProxGradResults
         this = new()
         this.gradient_mappings = Dict{Int, Vector}()
         this.gradient_mapping_norm = Vector{Real}()
-        this.objective_vals = Vector{Real}()
+        this.objective_vals = Dict{Int, Real}()
         this.solns = Dict{Int, Vector}()
         this.step_sizes = Vector{Real}()
         this.flags = 0
@@ -58,25 +51,30 @@ mutable struct ProxGradResults
 end
 
 """
-Initiate the instance of `ProxGradResults`, it's required, without this this class won't let you do anything. Because 
-it at least need the initial conditions for the gradient descend algorithms. 
+Initiate the instance of `ProxGradResults`, it's required, without this this class won't let you do anything. 
+Because it at least need the initial conditions for the optimizations algorithm. 
 ### Argument
 - `ProxGradResults`: The type that this function acts on. 
 - `x0::Vecotr`: The initial guess for the algorithm. 
 - `objective_initial::Real`: The initial objective value for the optimization problem. 
 - `step_size::Real`: The initial step size for running the algorithm. 
 """
-function Initiate!(this::ProxGradResults, 
-    x0::Vector, 
-    obj_initial::Real, 
-    step_size::Real
+function Initiate!(
+    this::ProxGradResults, 
+    x0::Vector,  
+    step_size::Real, 
+    obj_initial::Union{Real, Nothing}=nothing
 )
     this.itr_counter = 0
     this.solns[this.itr_counter] = x0
-    push!(this.objective_vals, obj_initial)
+    if !isnothing(obj_initial)
+        this.objective_vals[this.itr_counter] = obj_initial
+    end
     push!(this.step_sizes, step_size)
     return nothing
 end
+
+
 
 """
 During each iteration, we have the option to store the parameters when the algorithm is running. 
@@ -85,22 +83,24 @@ During each iteration, we have the option to store the parameters when the algor
 """
 function Register!(
     this::ProxGradResults, 
-    obj::Real, soln::Vector, 
-    pgrad_map::Vector, 
-    step_size::Real
+    soln::Vector, 
+    step_size::Real,
+    pgrad_map::Union{Vector, Nothing}=nothing, 
+    obj::Union{Real, Nothing}=nothing, 
 )
     if this.itr_counter == -1
         error("ProxGrad Results is called without initiation.")
     end
     this.itr_counter += 1
     k = this.itr_counter
-    push!(this.objective_vals, obj)
-    push!(this.gradient_mapping_norm, norm(pgrad_map))
+
     push!(this.step_sizes, step_size)
+    push!(this.gradient_mapping_norm, norm(pgrad_map))
 
     if mod(k, this.collection_interval) == 0
         this.solns[k] = copy(soln)
         this.gradient_mappings[k] = copy(pgrad_map)
+        this.objective_vals[k] = obj
     end
     return nothing
 end
@@ -118,62 +118,28 @@ function GetAllSolns(this::ProxGradResults)
 end
 
 
-
 # ==============================================================================
-# PROXIMAL GRADIENT METHOD HERE 
+# PROXIMAL GRADIENT METHOD AND THEIR VARIANTS
 # ==============================================================================
 
+function prox_grad(
+    f::SmoothFxn, 
+    g::NonsmoothFxn, 
+    eta::Number, 
+    x::AbstractArray
+)::AbstractArray
+    @assert eta > 0 "Error, should be eta > 0 but we have eta = $(eta). "
+    x = x - eta*grad(f, x)
+    x = prox(g, eta, x)
+    return x
+end 
 
-"""
-This function fullfill a template for proximal gradient method. One can susbtitute different updating functions 
-for the proximal gradient method. You can only update the momentum term. If more information is needed, make it 
-a functor instead of a function. 
-
-### Positional Arugments
-- `g::SmoothFxn`
-- `h::NonsmoothFxn`
-- seq::Union{MomentumTerm, Function},
-- `x0::Vector{T1} `
-- `step_size::Union{T2, Nothing}=nothing`, (optional)
-
-### Named Arguments
-- `itr_max::Int=1000`
-- `epsilon::AbstractFloat=1e-10`
-- `line_search::Bool=false`
-- `nesterov_momentum::Bool = false`
-- `results_holder::ProxGradResults=ProxGradResults()`
-"""
-function ProxGradientNesterovClassic( 
-    g::SmoothFxn, 
-    h::NonsmoothFxn, 
-    seq::Union{MomentumTerm, Function},
-    x0::Vector{T1}, 
-    step_size::Union{T2, Nothing}=nothing;
-    itr_max::Int=1000,
-    epsilon::AbstractFloat=1e-10, 
-    line_search::Bool=false, 
-    results_holder::ProxGradResults=ProxGradResults()
-) where {T1 <: Number, T2 <: Number}
-    @assert itr_max > 0 "The maximum number of iterations is a strictly positive integers. "
+function grad_map(
+    f::SmoothFxn, 
+    g::NonsmoothFxn, 
+    eta::Number, 
+    x::AbstractArray
+)::AbstractArray
+return x - prox_grad(f, g, eta, x) end
 
 
-
-
-    
-end
-
-
-function ProximalGradientExperimentalI(
-    g::SmoothFxn, 
-    h::NonsmoothFxn, 
-    seq::Union{MomentumTerm, Function},
-    x0::Vector{T1}, 
-    step_size::Union{T2, Nothing}=nothing;
-    itr_max::Int=1000,
-    epsilon::AbstractFloat=1e-10, 
-    line_search::Bool=false, 
-    results_holder::ProxGradResults=ProxGradResults()
-):
-
-
-end
