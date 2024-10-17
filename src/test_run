@@ -10,7 +10,11 @@ using Test, LinearAlgebra
     # sanity test 
     @test true
 
+    """
+        Test the ISTA routine a very basic problem, all settings on the results collected turned on.     
+    """
     function basicISTATest1()
+        
         # just throw assertion error if something went wrong with the numerics of the algorithm. 
         # this function go through the ISTA algorithm with different setting as a run through of stuff
         # from most part of the code base. 
@@ -31,6 +35,9 @@ using Test, LinearAlgebra
         return true # runned without obvious issue. 
     end
     
+    function basicVFISTATest1()
+
+    end
 
 
     @test basicISTATest1()

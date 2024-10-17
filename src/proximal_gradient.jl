@@ -79,6 +79,10 @@ function initiate!(
     step_size::Real, 
     obj_initial::Union{Real, Nothing}=nothing
 )
+    if this.itr_counter != -1
+        throw(ErrorException("Instance already been initiated, cannot be initiated for a second time. "))
+    end
+
     this.itr_counter = 0
     this.solns[this.itr_counter] = x0
     
@@ -88,23 +92,32 @@ function initiate!(
     end
 
     push!(this.step_sizes, step_size)
+
     return nothing
 end
 
-function get_current_iterate(this::ResultsCollector) return this.itr_counter end
+function get_current_iterate(this::ResultsCollector)::Bool
+return this.itr_counter end
 
-function give_fxnval_nxt_itr(this::ResultsCollector) 
+function give_fxnval_nxt_itr(this::ResultsCollector)::Bool
     return mod(this.itr_counter + 1, this.collection_interval) == 0 && this.collect_fxn_val
 end
 
-function give_pgradmap_nxt_itr(this::ResultsCollector) 
+function give_pgradmap_nxt_itr(this::ResultsCollector)::Bool
     return mod(this.itr_counter + 1, this.collection_interval) == 0 && this.collect_grad_map
 end
 
-function period_nxt_itr(this::ResultsCollector)
+function period_nxt_itr(this::ResultsCollector)::Bool
     return mod(this.itr_counter + 1, this.collection_interval) == 0
 end
 
+function collect_fxn_vals(this::ResultsCollector)::Bool
+    return this.collect_fxn_val
+end
+
+function collect_grad_map(this::ResultsCollector)::Bool
+    return this.collect_grad_map
+end
 
 
 """
@@ -188,11 +201,6 @@ function report_results(this::ResultsCollector)::Nothing
     return nothing
 end
 
-
-
-abstract type AbstractAlgorithmSettings
-
-end
 
 
 
@@ -335,7 +343,60 @@ function fista(
 
 end
 
+
+"""
+The VIFISTA routine is a constant acceleration, constant stepsize method for function with quadratic growth 
+parameter μ and Lipschitz constant on gradient L. 
+
+## Poisitional Arguments
+- `f`: 
+- `g`: 
+- `x0`: 
+- `lipschitz_constant`: 
+- `sc_constant`: 
+- `result_collector`: 
+- `eps`: 
+- `max_itr`: 
+"""
 function vfista(
+    f::SmoothFxn, 
+    g::NonsmoothFxn, 
+    x0::AbstractArray, 
+    lipschitz_constant::Real,
+    sc_constant::Real,
+    result_collector::ResultsCollector=ResultsCollector(), 
+    eps::Real=1e-15,
+    max_itr::Int=2000, 
+)
+
+    @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"+
+    " and `sc_constant` = 0, however this is not true and we have: "+
+    "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
+    L, μ = lipschitz_constant, sc_constant
+    κ = L/μ
+    η = L^(-1)
+
+    # initiate
+    x, y = x0, x0
+    fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
+    initiate!(result_collector, 0, η, fxnInitialVal)
+
+    # iterates
+    terminationFlag = 0
+    for k = 1:max_itr
+        
+        if k == max_itr
+            terminationFlag = 1
+            break
+        end
+    end
+
+
+
+
+end
+
+function ppm_apg(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
     x0::AbstractArray, 
@@ -349,7 +410,4 @@ function vfista(
 
 
 
-end
-
-function ppm_apg()
 end
