@@ -6,6 +6,7 @@ include("proximal_gradient.jl")
 
 using Test, LinearAlgebra, UnicodePlots
 
+
 @testset "Test Set 1" begin 
     
 
@@ -22,9 +23,9 @@ using Test, LinearAlgebra, UnicodePlots
         L, μ = 1, 1e-2
         A = Diagonal(LinRange(μ, L, n))
         b = zeros(n)
-        f = Quadratic(A, zeros(size(b)), 0)
+        f = Quadratic(A, b, 0)
         g = MAbs(0.01)
-        x0 = 1*ones(n)
+        x0 = 100*ones(n)
         results = ista(f, g, x0, eps=1e-2, eta=1/L)
         if results.flag != 0
             return false
@@ -32,7 +33,8 @@ using Test, LinearAlgebra, UnicodePlots
         report_results(results)
         xs = get_all_objective_vals(results)
         ks = 1:length(xs)
-        println(lineplot(ks, xs, title="ISTA BASIC TEST1", yscale=:log10))
+        println(lineplot(ks, xs, title="ISTA BASIC TEST1", yscale=:log2))
+        
 
         return true # runned without obvious issue. 
     end
@@ -43,9 +45,9 @@ using Test, LinearAlgebra, UnicodePlots
         L, μ = 1, 1e-2
         A = Diagonal(LinRange(μ, L, n))
         b = zeros(n)
-        f = Quadratic(A, zeros(size(b)), 0)
+        f = Quadratic(A, b, 0)
         g = MAbs(0.01)
-        x0 = 1*ones(n)
+        x0 = 100*ones(n)
         results = vfista(f, g, x0, L, μ, eps=1e-2)
         
         if results.flag != 0
@@ -55,7 +57,7 @@ using Test, LinearAlgebra, UnicodePlots
         report_results(results)
         xs = get_all_objective_vals(results)
         ks = 1:length(xs)
-        print(lineplot(ks, xs, title="VFISTA BASIC TEST1", yscale=:log10))
+        println(lineplot(ks, xs, title="basicVFISTATest1",yscale=:log2))
 
         return true # runned without obvious issue. 
     end
@@ -63,20 +65,19 @@ using Test, LinearAlgebra, UnicodePlots
     function basicPPMAPGTest1()
         @info "Testing: basicPPMAPGTest1"
         n = 100
-        L, μ = 1, 1e-2
+        L, μ = 1, 1e-3
         A = Diagonal(LinRange(μ, L, n))
         b = zeros(n)
-        f = Quadratic(A, zeros(size(b)), 0)
+        f = Quadratic(A, b, 0)
         g = MAbs(0.01)
-        x0 = 1*ones(n)
+        x0 = 100*ones(n)
         
-        global results
         results = ppm_apg(f, g, x0, eps=1e-2)
         
         report_results(results)
         xs = get_all_objective_vals(results)
         ks = 1:length(xs)
-        print(lineplot(ks, xs, title="basicPPMAPGTest1 TEST1", yscale=:log10))
+        println(lineplot(ks, xs, title="basicPPMAPGTest1", yscale=:log2))
         
         if results.flag != 0
             println("termination flag: $(results.flag)")

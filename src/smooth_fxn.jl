@@ -54,7 +54,7 @@ mutable struct Quadratic <: SmoothFxn
     "A constant offset for the quadratic function. "
     c::Number
 
-    function Quadratic(A::AbstractMatrix, b::AbstractVector, c::Number)
+    function Quadratic(A::AbstractMatrix, b::AbstractVector, c::Number)::Quadratic
         @assert size(A, 1) == size(A, 2) "Type `Quadratic` smooth function requires a squared matrix `A`, but instead we got "*
         "size(A) = $(size(A)). "
         @assert size(A, 1) == size(b, 1) "Type `Quadratic has unmathced dimension between matrix `A` and vector constant `b`. "
@@ -74,4 +74,18 @@ function grad(this::Quadratic, x::AbstractVector)
     A, b, _ = this.A, this.b, this.c
     @assert length(x) == length(b) "`x` passed to Grad of `::Quadratic` has the wrong dimension"    
     return 0.5*(A + A')*x + b
+end
+
+
+### Logistic Loss
+
+mutable struct LogLoss
+    
+    A::AbstractMatrix
+    b::AbstractVector
+
+    function logisticLoss()
+        this = new()
+        return new
+    end
 end

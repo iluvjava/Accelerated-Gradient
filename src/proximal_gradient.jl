@@ -198,6 +198,7 @@ function report_results(this::ResultsCollector)::Nothing
 
     resultString = 
     """
+    # RESULT REPORT FROM RESULT COLLECTOR 
     ## Collector Policies: 
         * Collect solution iterates periodically: $collectFxnVals
         * Collect gradient mapping periodically: $collectGPM
@@ -206,6 +207,7 @@ function report_results(this::ResultsCollector)::Nothing
         * Initialized: $initialized
         * Current iteration counter: $(this.itr_counter)
         * exit flag: $(this.flag)
+    
     """
     print(resultString)
     return nothing
@@ -259,7 +261,7 @@ function execute_lipz_line_search(
         # lazy then just update the Lipschitz constant, and not the future iterates. 
         eta = (1/2)*dotted/d(y)
     else
-        while eta >= tol &&  d(y) > 1/(2*eta)*dotted
+        while eta >= tol &&  d(y) >= 1/(2*eta)*dotted
             eta /= 2
             y = prox_grad(f, g, eta, x)
             dotted = dot(y - x, y - x)
@@ -288,8 +290,9 @@ function execute_sc_const_line_search(
     L = lipschitz_constant
     mu = sc_constant
     d(z) = f(z) - f(y) - dot(grad(f, y), z - y) # <-- Bregman divergence of the smooth part, fixed on x. 
+    # d(z) = 2*dot(grad(f, z) - grad(f, y), z - y)
     Ty = prox_grad(f, g, 1/L, y)
-    X(μ, x) = (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ))*(1/μ)*(y - Ty)  # <-- Probing the next "ghost" iterates based on the PPM APG interpretation 
+    X(μ, x) = (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ)/μ)*(y - Ty)  # <-- Probing the next "ghost" iterates based on the PPM APG interpretation 
     
     newX = X(mu, x)
     bregD = d(newX)
@@ -302,6 +305,7 @@ function execute_sc_const_line_search(
         # do a iterative line search using BD 
         while bregD < (mu/2)*dotted
             mu /= 2
+            # mu = (2bregD/dotted)^2
             # update all because mu changed. 
             newX = X(mu, x)
             bregD = d(newX)
@@ -313,7 +317,7 @@ function execute_sc_const_line_search(
         return mu, newX
     end
     # tolerance violated. 
-    return nothing 
+    return mu, newX
 end
 
 
@@ -437,8 +441,9 @@ function vfista(
     sc_constant::Real;
     # Named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
-    eps::Number=1e-15,
-    max_itr::Int=2000
+    eps::Number=1e-8,
+    max_itr::Int=2000, 
+    sc_line_search::Bool
 )::ResultsCollector
 
     @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"+
@@ -458,11 +463,10 @@ function vfista(
     for k = 1:max_itr
         
         x⁺ = prox_grad(f, g, η, y)
-        y⁺ = x⁺ + ((κ - 1)/(κ + 1))*(x⁺ - x)
+        y⁺ = x⁺ + ((sqrt(κ) - 1)/(sqrt(κ) + 1))*(x⁺ - x)
         
         # results collect
         fxn_val, pgradMapVec = nothing, η^(-1)*(x⁺ - x)
-        
         if give_fxnval_nxt_itr(result_collector)
             fxn_val = f(x⁺) + g(x⁺)
         end
@@ -495,22 +499,21 @@ function vfista(
 end
 
 
-
 function ppm_apg(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
     x0::AbstractArray;
     # named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
-    eps::Real=1e-18,
+    eps::Real=1e-8,
     max_itr::Int=2000, 
     lipschitz_constant::Real=1, 
     sc_constant::Real=0.5,
-    lipschitz_line_search::Bool=true, 
-    sc_constant_line_search::Bool=true
+    lipschitz_line_search::Bool=false, 
+    sc_constant_line_search::Bool=false
 )::ResultsCollector
-    @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"+
-    " and `sc_constant` = 0, however this is not true and we have: "+
+    @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"*
+    " and `sc_constant` = 0, however this is not true and we have: "*
     "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
 
     L, μ = lipschitz_constant, sc_constant
@@ -524,7 +527,6 @@ function ppm_apg(
     # iterates 
 
     for k in 1:max_itr
-        
         if lipschitz_line_search
             results = execute_lipz_line_search(f, g, 1/L, y)
             if isnothing(results)
@@ -536,7 +538,6 @@ function ppm_apg(
         else
             Ty = prox_grad(f, g, 1/L, y)
         end
-        y⁺ = 1/(1 + sqrt(L/μ))*(sqrt(L/μ)*Ty + x)
 
         if sc_constant_line_search
             results = execute_sc_const_line_search(f, g, L, μ, x, y)
@@ -547,13 +548,18 @@ function ppm_apg(
             μ, x⁺ = results
             push!(scConstEstimates,  μ)
         else
-            x⁺ = 1/sqrt(L/μ)*(y - x) + x - sqrt(L*μ)*L*(y - Ty)
+            ρ = sqrt(L/μ)
+            x⁺ = (1/ρ)*(y - x) + x - (1/(ρ*μ))*L*(y - Ty)
+            #  (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ)/μ)*(y - Ty)
         end
+
+        ρ = sqrt(L/μ)
+        y⁺ = (ρ*Ty + x⁺)/(1 + ρ)
 
         # results collect
         fxn_val, pgradMapVec = nothing, L*(y - Ty)
         if give_fxnval_nxt_itr(result_collector)
-            fxn_val = f(x⁺) + g(x⁺)
+            fxn_val = f(Ty) + g(Ty)
         end
         register!(
             result_collector, 
@@ -576,6 +582,7 @@ function ppm_apg(
         end
 
     end
+
     result_collector.misc = scConstEstimates
     result_collector.flag = flag
     return result_collector
