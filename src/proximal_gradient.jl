@@ -12,6 +12,7 @@ iterations and the previous iterations. It's collect sparsely according the poli
 - `soln::Vector`: The final solution obtained by the algorithm. 
 - `step_sizes::Vector{Real}`: all the stepsizes used by the algorithm. 
 - `flags::Int`: exit flag
+    * `-1` flag is not yet set by the algorithm 
     * `0` Exits because tolerance reached. 
     * `1` Maximum iteration reached without reaching the tolerance. 
     * `2` Lipschitz smoothness line search failed. 
@@ -36,6 +37,8 @@ mutable struct ResultsCollector
 
     collect_fxn_val::Bool                       # whether to collect objective values periodically. 
     collect_grad_map::Bool                      # whether to collect gradient mapping periodically. 
+
+    misc::Any                                   # whatever the client side wants, Initialized to be undefined. 
 
     
     """
@@ -140,7 +143,7 @@ function register!(
     obj_val::Union{Real, Nothing}=nothing, 
 )
     if this.itr_counter == -1
-        error("ProxGrad Results is called without initiation.")
+        throw(ErrorException("ProxGrad Results is called without initiation."))
     end
     
     # increment counter and register current solution. 
@@ -172,7 +175,7 @@ end
 """
     Get all the sparsely collected solutions as an array of vectors. 
 """
-function get_all_solns(this::ResultsCollector)
+function get_all_solns(this::ResultsCollector)::Vector{Vector}
     result = Vector{Vector}()
     for k in sort(keys(this.solns)|>collect)
         push!(result, this.solns[k])
@@ -180,6 +183,13 @@ function get_all_solns(this::ResultsCollector)
     return result
 end
 
+function get_all_objective_vals(this::ResultsCollector)::Vector{Number}
+    result = Vector{Number}()
+    for k in sort(keys(this.objective_vals)|>collect)
+        push!(result, this.objective_vals[k])
+    end
+    return result
+end
 
 function report_results(this::ResultsCollector)::Nothing
     collectFxnVals = this.collect_fxn_val ? "yes" : "no"
@@ -237,19 +247,75 @@ function execute_lipz_line_search(
     g::NonsmoothFxn,
     eta::Real, 
     x::AbstractVector,
-    tol=1e-10
+    tol=1e-10; 
+    # named vector
+    lazy::Bool=false
 )::Union{Tuple{Real, AbstractVector}, Nothing}
-    q(y, η) = f(y) - f(x) - dot(grad(f, x), y - x) - 1/(2η)*dot(y - x, y - x)
+    
+    d(y) = f(y) - f(x) - dot(grad(f, x), y - x) # <-- Bregman divergence of the smooth part. 
     y = prox_grad(f, g, eta, x)
-    while eta >= tol && q(y, eta) > 0 
-        eta /= 2 
-        y = prox_grad(f, g, eta, x)
+    dotted = dot(y - x, y - x)
+    if lazy
+        # lazy then just update the Lipschitz constant, and not the future iterates. 
+        eta = (1/2)*dotted/d(y)
+    else
+        while eta >= tol &&  d(y) > 1/(2*eta)*dotted
+            eta /= 2
+            y = prox_grad(f, g, eta, x)
+            dotted = dot(y - x, y - x)
+        end
     end
+    
+    
     if eta >= tol
         return eta, y
     end
+
     return nothing
 end
+
+function execute_sc_const_line_search(
+    f::SmoothFxn, 
+    g::NonsmoothFxn, 
+    lipschitz_constant::Real, 
+    sc_constant::Real, 
+    x::AbstractVector, 
+    y::AbstractVector;
+    # named arguments 
+    tol=1e-10, 
+    lazy::Bool=false
+)::Union{Tuple{Real, AbstractVector}, Nothing}
+    L = lipschitz_constant
+    mu = sc_constant
+    d(z) = f(z) - f(y) - dot(grad(f, y), z - y) # <-- Bregman divergence of the smooth part, fixed on x. 
+    Ty = prox_grad(f, g, 1/L, y)
+    X(μ, x) = (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ))*(1/μ)*(y - Ty)  # <-- Probing the next "ghost" iterates based on the PPM APG interpretation 
+    
+    newX = X(mu, x)
+    bregD = d(newX)
+    dotted = dot(newX - x, newX - x)
+    
+    if lazy
+        # only update mu
+        mu = min(mu, 2*bregD/dotted)
+    else
+        # do a iterative line search using BD 
+        while bregD < (mu/2)*dotted
+            mu /= 2
+            # update all because mu changed. 
+            newX = X(mu, x)
+            bregD = d(newX)
+            dotted = dot(newX - x, newX - x)
+        end
+    end
+
+    if mu >= tol 
+        return mu, newX
+    end
+    # tolerance violated. 
+    return nothing 
+end
+
 
 
 """
@@ -271,11 +337,12 @@ determining the stepsize at each iteratin.
 function ista(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
-    x0::AbstractArray, 
-    result_collector::ResultsCollector=ResultsCollector(), 
-    eps::Real=1e-18,
+    x0::AbstractArray;
+    # named arguments 
+    result_collector::ResultsCollector=ResultsCollector(),
+    eps::Number=1e-18,
     max_itr::Int=2000, 
-    eta::Real=1, 
+    eta::Number=1, 
     lipschitz_line_search::Bool=true
 )::ResultsCollector
 
@@ -294,11 +361,12 @@ function ista(
     for k in 1:max_itr
         xPre = x
 
+        # x is updated here 
         if lipschitz_line_search
             result = execute_lipz_line_search(f, g, eta, xPre)
-            if isnothing(result)
+            if isnothing(result) 
                 flag = 2
-                break # <-- Line search failed. 
+                break # <-- Line fucking search failed. 
             end
             eta, x = result
         else
@@ -306,9 +374,7 @@ function ista(
         end
         
         fxn_val, pgradMapVec = nothing, eta^(-1)*(x - xPre)
-        if norm(x - xPre) < eps
-            break # <-- Tolerance reached. 
-        end
+        
         if give_fxnval_nxt_itr(result_collector)
             fxn_val = f(x) + g(x)
         end
@@ -321,6 +387,11 @@ function ista(
             pgradMapVec, 
             fxn_val
         )
+
+        if norm(x - xPre) < eps
+            break # <-- Tolerance reached. 
+        end
+
         if k == max_itr
             flag = 1 # <-- Maxmum iteration reached. 
         end
@@ -333,8 +404,8 @@ end
 function fista(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
-    x0::AbstractArray, 
-    result_collector::ResultsCollector=ResultsCollector(), 
+    x0::AbstractArray;
+    result_collector::ResultsCollector=ResultsCollector(),
     eps::Real=1e-18,
     max_itr::Int=2000, 
     eta::Real=1, 
@@ -363,11 +434,12 @@ function vfista(
     g::NonsmoothFxn, 
     x0::AbstractArray, 
     lipschitz_constant::Real,
-    sc_constant::Real,
+    sc_constant::Real;
+    # Named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
-    eps::Real=1e-15,
-    max_itr::Int=2000, 
-)
+    eps::Number=1e-15,
+    max_itr::Int=2000
+)::ResultsCollector
 
     @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"+
     " and `sc_constant` = 0, however this is not true and we have: "+
@@ -379,35 +451,132 @@ function vfista(
     # initiate
     x, y = x0, x0
     fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
-    initiate!(result_collector, 0, η, fxnInitialVal)
+    initiate!(result_collector, x0, η, fxnInitialVal)
 
     # iterates
-    terminationFlag = 0
+    flag = 0
     for k = 1:max_itr
         
+        x⁺ = prox_grad(f, g, η, y)
+        y⁺ = x⁺ + ((κ - 1)/(κ + 1))*(x⁺ - x)
+        
+        # results collect
+        fxn_val, pgradMapVec = nothing, η^(-1)*(x⁺ - x)
+        
+        if give_fxnval_nxt_itr(result_collector)
+            fxn_val = f(x⁺) + g(x⁺)
+        end
+        
+
+        # collect results
+        register!(
+            result_collector, 
+            x⁺, 
+            η, 
+            pgradMapVec, 
+            fxn_val
+        )
+
+        if norm(x - x⁺) < eps
+            break # <-- Tolerance reached. 
+        else
+            x = x⁺
+            y = y⁺
+        end
+
+        
         if k == max_itr
-            terminationFlag = 1
+            flag = 1
             break
         end
     end
-
-
-
-
+    result_collector.flag = flag
+    return result_collector
 end
+
+
 
 function ppm_apg(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
-    x0::AbstractArray, 
+    x0::AbstractArray;
+    # named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
     eps::Real=1e-18,
     max_itr::Int=2000, 
     lipschitz_constant::Real=1, 
-    sc_constant::real=1,
-    lipschitz_line_search::Bool=true
-)
+    sc_constant::Real=0.5,
+    lipschitz_line_search::Bool=true, 
+    sc_constant_line_search::Bool=true
+)::ResultsCollector
+    @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"+
+    " and `sc_constant` = 0, however this is not true and we have: "+
+    "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
 
+    L, μ = lipschitz_constant, sc_constant
+    # initiate
+    x, y = x0, x0
+    flag = 0
+    fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
+    initiate!(result_collector, x0, 1/L, fxnInitialVal)
+    scConstEstimates = Vector{Number}()
 
+    # iterates 
 
+    for k in 1:max_itr
+        
+        if lipschitz_line_search
+            results = execute_lipz_line_search(f, g, 1/L, y)
+            if isnothing(results)
+                flag = 2   
+                break # <--  Lipschitz line search breaks near point: y
+            end
+            s, Ty = results 
+            L = 1/s
+        else
+            Ty = prox_grad(f, g, 1/L, y)
+        end
+        y⁺ = 1/(1 + sqrt(L/μ))*(sqrt(L/μ)*Ty + x)
+
+        if sc_constant_line_search
+            results = execute_sc_const_line_search(f, g, L, μ, x, y)
+            if isnothing(results)
+                flag = 2 # <-- Strong sc constant search failed 
+                break 
+            end
+            μ, x⁺ = results
+            push!(scConstEstimates,  μ)
+        else
+            x⁺ = 1/sqrt(L/μ)*(y - x) + x - sqrt(L*μ)*L*(y - Ty)
+        end
+
+        # results collect
+        fxn_val, pgradMapVec = nothing, L*(y - Ty)
+        if give_fxnval_nxt_itr(result_collector)
+            fxn_val = f(x⁺) + g(x⁺)
+        end
+        register!(
+            result_collector, 
+            x, 
+            1/L, 
+            pgradMapVec, 
+            fxn_val
+        )
+
+        if norm(y - Ty) < eps
+            println("tolerance reached. ")
+            break # <-- Tolerance reached. 
+        else
+            x, y = x⁺, y⁺
+        end
+
+        if k == max_itr
+            flag = 1
+            # max iteration reached
+        end
+
+    end
+    result_collector.misc = scConstEstimates
+    result_collector.flag = flag
+    return result_collector
 end

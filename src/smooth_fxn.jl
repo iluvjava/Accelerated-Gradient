@@ -70,7 +70,7 @@ function (this::Quadratic)(x::AbstractVector)
 end
 
 
-function Grad(this::Quadratic, x::AbstractVector)
+function grad(this::Quadratic, x::AbstractVector)
     A, b, _ = this.A, this.b, this.c
     @assert length(x) == length(b) "`x` passed to Grad of `::Quadratic` has the wrong dimension"    
     return 0.5*(A + A')*x + b

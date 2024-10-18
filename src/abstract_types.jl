@@ -17,7 +17,7 @@ end
 function (this::Fxn)(::AbstractArray{T})::Number where {T<:Number}
     throw(
         ErrorException(
-            "Abstract type function get overloaded, method not yet implemented for $(type(this)). "+
+            "Abstract type function get overloaded, method not yet implemented for $(typeof(this)). "*
             "If this is unexpected, please imeplement this function for your type. "
             )
     )
@@ -40,7 +40,7 @@ end
 function prox(this::NonsmoothFxn, arg::AbstractArray{T}):: AbstractArray where {T <: Number} 
     throw(
         ErrorException(
-            "Abstract type function get overloaded, method not yet implemented for $(type(this)). "+
+            "Abstract type function get overloaded, method not yet implemented for $(typeof(this)). "*
             "If this is unexpected, please imeplement this function for your type. "
         )
     )
@@ -63,10 +63,10 @@ abstract type SmoothFxn <: Fxn
 end
 
 
-function grad(this::NonsmoothFxn, arg::AbstractArray{T}) :: AbstractArray where {T <: Number}
+function grad(this::SmoothFxn, arg::AbstractArray{T}) :: AbstractArray where {T <: Number}
     throw(
         ErrorException(
-            "Abstract type function get overloaded, method not yet implemented for $(type(this)). "+
+            "Abstract type function get overloaded, method not yet implemented for $(typeof(this)). "*
             "If this is unexpected, please imeplement this function for your type. "
         )
     )
@@ -74,10 +74,10 @@ end
 
 
 
-function prox(this::NonsmoothFxn, arg::AbstractArray{T}):: AbstractArray where {T <: Number} 
+function prox(this::SmoothFxn, arg::AbstractArray{T}):: AbstractArray where {T <: Number} 
     throw(
         ErrorException(
-            "Abstract type function get overloaded, method not yet implemented for $(type(this)). "+
+            "Abstract type function get overloaded, method not yet implemented for $(typeof(this)). "*
             "If this is unexpected, please imeplement this function for your type. "
         )
     )
