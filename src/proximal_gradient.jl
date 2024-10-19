@@ -442,8 +442,7 @@ function vfista(
     # Named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
     eps::Number=1e-8,
-    max_itr::Int=2000, 
-    sc_line_search::Bool
+    max_itr::Int=2000
 )::ResultsCollector
 
     @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"+
@@ -585,5 +584,97 @@ function ppm_apg(
 
     result_collector.misc = scConstEstimates
     result_collector.flag = flag
+    return result_collector
+end
+
+
+
+function inexact_vfista(
+    f::SmoothFxn, 
+    g::NonsmoothFxn, 
+    x0::AbstractArray;
+    lipschitz_constant::Real=1,
+    sc_constant::Real=1/2, 
+    # Named arguments 
+    result_collector::ResultsCollector=ResultsCollector(), 
+    eps::Number=1e-8,
+    max_itr::Int=2000, 
+    sc_constant_line_search::Bool=false, 
+    lipschitz_line_search::Bool=false
+)::ResultsCollector
+
+    @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"+
+    " and `sc_constant` = 0, however this is not true and we have: "+
+    "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
+    L, μ = lipschitz_constant, sc_constant
+    κ = L/μ
+
+    # initiate
+    x, y = x0, x0
+    fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
+    estimatedSCConst = Vector{Number}()
+    push!(estimatedSCConst, μ)
+    initiate!(result_collector, x0, 1/L, fxnInitialVal)
+
+    # iterate
+    flag = 0
+    for k = 1:max_itr
+        
+        if lipschitz_line_search # perform lipschitz line search step 
+            results = execute_lipz_line_search(f, g, 1/L, y)
+            if isnothing(results)
+                flag = 2 
+                break 
+            end
+            η, x⁺ = results
+            L = 1/η  # update Lipschitz constant and iterates
+        else
+            x⁺ = prox_grad(f, g, 1/L, y)
+        end
+
+        if sc_constant_line_search  # estimate strongly convex constant
+            Df(x1, x2) = f(x1) - f(x2) - dot(grad(f, x2), x1 - x2)
+            μ = min(μ, 2Df(x, x⁺)/dot(x⁺ - x, x⁺ - x))
+        end
+    
+        if μ > 0
+            κ = L/μ
+            y⁺ = x⁺ + ((sqrt(κ) - 1)/(sqrt(κ) + 1))*(x⁺ - x)
+        else
+            y⁺ = x⁺
+            μ = L/2
+        end
+        push!(estimatedSCConst, μ)
+        
+        # results collect
+        fxn_val, pgradMapVec = nothing, (1/L)*(x⁺ - x)
+        if give_fxnval_nxt_itr(result_collector)
+            fxn_val = f(x⁺) + g(x⁺)
+        end
+        
+        # collect results
+        register!(
+            result_collector, 
+            x⁺, 
+            1/L, 
+            pgradMapVec, 
+            fxn_val
+        )
+
+        if norm(x - x⁺) < eps
+            break # <-- Tolerance reached. 
+        else
+            x = x⁺
+            y = y⁺
+        end
+        
+        if k == max_itr
+            flag = 1
+            break
+        end
+    end
+    
+    result_collector.flag = flag
+    result_collector.misc = estimatedSCConst
     return result_collector
 end

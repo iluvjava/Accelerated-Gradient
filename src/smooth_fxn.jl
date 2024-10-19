@@ -84,8 +84,13 @@ mutable struct LogLoss
     A::AbstractMatrix
     b::AbstractVector
 
-    function logisticLoss()
+    function logisticLoss(
+        A::AbstractMatrix, 
+        b::AbstractVector
+    )
         this = new()
+        this.A = A
+        
         return new
     end
 end
