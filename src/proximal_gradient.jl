@@ -191,6 +191,8 @@ function get_all_objective_vals(this::ResultsCollector)::Vector{Number}
     return result
 end
 
+
+
 function report_results(this::ResultsCollector)::Nothing
     collectFxnVals = this.collect_fxn_val ? "yes" : "no"
     collectGPM = this.collect_grad_map ? "yes" : "no"
@@ -498,6 +500,8 @@ function vfista(
 end
 
 
+
+
 function ppm_apg(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
@@ -511,10 +515,10 @@ function ppm_apg(
     lipschitz_line_search::Bool=false, 
     sc_constant_line_search::Bool=false
 )::ResultsCollector
+    throw(ErrorException("ALGORITHM DEPRECATED. "))
     @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"*
     " and `sc_constant` = 0, however this is not true and we have: "*
     "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
-
     L, μ = lipschitz_constant, sc_constant
     # initiate
     x, y = x0, x0
@@ -522,9 +526,7 @@ function ppm_apg(
     fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
     initiate!(result_collector, x0, 1/L, fxnInitialVal)
     scConstEstimates = Vector{Number}()
-
     # iterates 
-
     for k in 1:max_itr
         if lipschitz_line_search
             results = execute_lipz_line_search(f, g, 1/L, y)
@@ -537,7 +539,6 @@ function ppm_apg(
         else
             Ty = prox_grad(f, g, 1/L, y)
         end
-
         if sc_constant_line_search
             results = execute_sc_const_line_search(f, g, L, μ, x, y)
             if isnothing(results)
@@ -551,10 +552,8 @@ function ppm_apg(
             x⁺ = (1/ρ)*(y - x) + x - (1/(ρ*μ))*L*(y - Ty)
             #  (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ)/μ)*(y - Ty)
         end
-
         ρ = sqrt(L/μ)
         y⁺ = (ρ*Ty + x⁺)/(1 + ρ)
-
         # results collect
         fxn_val, pgradMapVec = nothing, L*(y - Ty)
         if give_fxnval_nxt_itr(result_collector)
@@ -567,21 +566,17 @@ function ppm_apg(
             pgradMapVec, 
             fxn_val
         )
-
         if norm(y - Ty) < eps
             println("tolerance reached. ")
             break # <-- Tolerance reached. 
         else
             x, y = x⁺, y⁺
         end
-
         if k == max_itr
             flag = 1
             # max iteration reached
         end
-
     end
-
     result_collector.misc = scConstEstimates
     result_collector.flag = flag
     return result_collector

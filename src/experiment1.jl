@@ -38,8 +38,8 @@ results2 = inexact_vfista(
     f, 
     g, 
     x0, 
-    lipschitz_constant=L/2, 
-    sc_constant=1/5, 
+    lipschitz_constant=L, 
+    sc_constant=L, 
     lipschitz_line_search=true, 
     sc_constant_line_search=true,
     eps=tol, 
@@ -71,11 +71,12 @@ plot!(fig1, optimalityGap2, label="inexact_vfista", yaxis=:log2)
 fig1 |> display
 
 
-
 muEstimates = results2.misc
 fig2 = plot(
     muEstimates, 
     yaxis=:log10, 
-    title="Strong convexity index estimation"
+    title="Strong convexity index estimation, log_10"
 )
 display(fig2)
+
+gradmapNorm = results1.gradient_mapping_norm
