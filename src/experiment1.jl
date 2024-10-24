@@ -20,9 +20,9 @@ function make_lasso_problem(
     return f, g
 end
 
-N, μ, L = 32, 1e-2, 1
+N, μ, L = 1024, 1e-4, 1
 f, g = make_lasso_problem(N, μ, L)
-x0 = ones(N)
+x0 = N:-1:1 |> collect
 MaxItr = 5000
 tol = 1e-8
 results1 = vfista(
