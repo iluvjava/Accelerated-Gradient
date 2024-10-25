@@ -24,11 +24,11 @@ function make_lasso_problem(
     A = diagm(diagonals) |> sparse
     b = @. (cos(π*(0:1:N - 1)) + 1)/2
     f = LogitLoss(A, b)
-    g = MAbs(1)
+    g = MAbs(0.1)
     return f, g
 end
 
-N, μ, L = 1024, 1e-4, 1
+N, μ, L = 64, 1e-4, 1
 f, g = make_lasso_problem(N, μ, L)
 x0 = N:-1:1 |> collect
 MaxItr = 5000
@@ -73,7 +73,7 @@ fig1 = plot(
     optimalityGap1, 
     yaxis=:log2,
     label="v-fista",
-    title="LASSO Experiment", 
+    title="Regularized Logistics Regression", 
 )
 plot!(fig1, optimalityGap2, label="inexact_vfista", yaxis=:log2)
 fig1 |> display
