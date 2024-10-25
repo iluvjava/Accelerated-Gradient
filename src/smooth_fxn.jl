@@ -1,3 +1,7 @@
+
+
+using Zygote  # for automatic differentiation. 
+
 """
 ‖b - Ax‖^2, where b is specifically, a vector. 
 """
@@ -27,16 +31,6 @@ function grad(this::SquareNormResidual, x::AbstractVector{T}) where {T <: Number
     A = this.A; 
     b = this.b
     return A'*(A*x - b)
-end
-
-
-
-
-"""
- The logistic loss function, binary classifications. 
-"""
-mutable struct LogisticLoss <: SmoothFxn
-
 end
 
 
@@ -79,18 +73,32 @@ end
 
 ### Logistic Loss
 
-mutable struct LogLoss
+mutable struct LogitLoss <: SmoothFxn
     
     A::AbstractMatrix
     b::AbstractVector
+    fxn::Function
 
-    function logisticLoss(
+    function LogitLoss(
         A::AbstractMatrix, 
         b::AbstractVector
     )
         this = new()
-        this.A = A
-        
-        return new
+        this.A = A 
+        this.b = b
+        this.fxn = (x) ->  sum(log.(1 .+ exp.(A*x))) + dot(b, A*x)
+
+        return this
     end
 end
+
+function (this::LogitLoss)(x::AbstractArray{T}) where T<: Number
+    return this.fxn(x)
+end
+
+
+function grad(this::LogitLoss, x::AbstractVector)::AbstractVector
+    return gradient(this.fxn, x)[1]
+end
+
+

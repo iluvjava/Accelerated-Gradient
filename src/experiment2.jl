@@ -12,7 +12,7 @@ include("smooth_fxn.jl")
 include("proximal_gradient.jl")
 
 
-using Test, LinearAlgebra, Plots
+using Test, LinearAlgebra, Plots, SparseArrays
 
 
 function make_lasso_problem(
@@ -21,14 +21,14 @@ function make_lasso_problem(
     L::Number
 )::Tuple{SmoothFxn, NonsmoothFxn}
     diagonals = vcat(LinRange(μ, L, N))
-    A = diagm(diagonals)
+    A = diagm(diagonals) |> sparse
     b = cos.((π/2)*(0:1:N - 1)) .+ 1e-4*rand(N)
     f = Quadratic(A, b, 0)
-    g = MAbs(0.1)
+    g = MAbs(1)
     return f, g
 end
 
-N, μ, L = 64, 1e-4, 1
+N, μ, L = 1024, 1e-4, 1
 f, g = make_lasso_problem(N, μ, L)
 x0 = N:-1:1 |> collect
 MaxItr = 5000

@@ -259,6 +259,7 @@ function execute_lipz_line_search(
     d(y) = f(y) - f(x) - dot(grad(f, x), y - x) # <-- Bregman divergence of the smooth part. 
     y = prox_grad(f, g, eta, x)
     dotted = dot(y - x, y - x)
+    
     if lazy
         # lazy then just update the Lipschitz constant, and not the future iterates. 
         eta = (1/2)*dotted/d(y)
