@@ -4,8 +4,8 @@ include("smooth_fxn.jl")
 include("proximal_gradient.jl")
 
 
-using Test, LinearAlgebra, Plots, SparseArrays
-
+using Test, LinearAlgebra, Plots, SparseArrays, PlotlyJS
+pgfplotsx()
 
 function make_lasso_problem(
     N::Integer,
@@ -20,9 +20,9 @@ function make_lasso_problem(
     return f, g
 end
 
-N, μ, L = 2048, 1e-4, 1
+N, μ, L = 64, 1e-4, 1
 f, g = make_lasso_problem(N, μ, L)
-x0 = N:-1:1 |> collect
+x0 = ones(N)
 MaxItr = 5000
 tol = 1e-8
 results1 = vfista(
@@ -63,11 +63,12 @@ optimalityGap2 = replace((x) -> max(x, eps(Float64)), optimalityGap2)
 
 fig1 = plot(
     optimalityGap1, 
-    yaxis=:log2,
     label="v-fista",
     title="Simple regression", 
+    yaxis=:log10, 
+    size=(1200, 800)
 )
-plot!(fig1, optimalityGap2, label="inexact_vfista", yaxis=:log2)
+plot!(fig1, optimalityGap2, label="inexact_vfista")
 fig1 |> display
 
 
@@ -75,7 +76,8 @@ muEstimates = results2.misc
 fig2 = plot(
     muEstimates, 
     yaxis=:log10, 
-    title="Strong convexity index estimation, log_10"
+    title="Strong convexity index estimation, log_10", 
+    size=(1200, 800)
 )
 display(fig2)
 

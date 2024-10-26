@@ -408,6 +408,8 @@ function ista(
     return result_collector
 end
 
+
+
 function fista(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
@@ -472,8 +474,6 @@ function vfista(
         if give_fxnval_nxt_itr(result_collector)
             fxn_val = f(x⁺) + g(x⁺)
         end
-        
-
         # collect results
         register!(
             result_collector, 
@@ -482,15 +482,13 @@ function vfista(
             pgradMapVec, 
             fxn_val
         )
-
-        if norm(x - x⁺) < eps
+        if norm(x⁺ - y) < eps
             break # <-- Tolerance reached. 
         else
             x = x⁺
             y = y⁺
         end
 
-        
         if k == max_itr
             flag = 1
             break
@@ -500,6 +498,21 @@ function vfista(
     return result_collector
 end
 
+
+function fista(
+    f::SmoothFxn, 
+    g::NonsmoothFxn, 
+    x0::AbstractArray, 
+    lipschitz_constant::Real;
+    # Named arguments 
+    result_collector::ResultsCollector=ResultsCollector(), 
+    eps::Number=1e-8,
+    max_itr::Int=2000
+)
+
+
+
+end
 
 
 
@@ -608,6 +621,7 @@ function inexact_vfista(
     # initiate
     x, y = x0, x0 # current ieration of x, y
     ỹ = y # previous iteration of y 
+    t = (n) -> (n + 1)/2
     fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
     estimatedSCConst = Vector{Number}()
     push!(estimatedSCConst, μ)
@@ -632,16 +646,12 @@ function inexact_vfista(
         # estimate strong convexity constant
         if sc_constant_line_search  # estimate strongly convex constant
             Df(x1, x2) = f(x1) - f(x2) - dot(grad(f, x2), x1 - x2)
-            μ = min(μ, 2Df(ỹ, y)/dot(ỹ - y, ỹ - y), 2Df(x, x⁺)/dot(x - x⁺, x - x⁺))
+            μ = (2*Df(x, x⁺)/dot(x - x⁺, x - x⁺) + μ)/2
+            @assert !isnan(μ)
         end
-    
-        if μ > 0
-            κ = L/μ
-            y⁺ = x⁺ + ((sqrt(κ) - 1)/(sqrt(κ) + 1))*(x⁺ - x)
-        else
-            y⁺ = x⁺
-            μ = L
-        end
+        κ = L/μ
+        θ = μ > 0 ? ((sqrt(κ) - 1)/(sqrt(κ) + 1)) : 0
+        y⁺ = x⁺ + θ*(x⁺ - x)
         push!(estimatedSCConst, μ)
         # results collect
         fxn_val, pgradMapVec = nothing, (1/L)*(x⁺ - x)
@@ -656,7 +666,7 @@ function inexact_vfista(
             pgradMapVec, 
             fxn_val
         )
-        if norm(x - x⁺) < eps
+        if norm(x⁺ - y) < eps
             break # <-- Tolerance reached. 
         else
             x = x⁺

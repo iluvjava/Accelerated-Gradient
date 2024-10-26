@@ -4,15 +4,9 @@ include("smooth_fxn.jl")
 include("proximal_gradient.jl")
 
 
-using Test, LinearAlgebra, Plots
+using Test, LinearAlgebra, Plots, SparseArrays, PlotlyJS
+pgfplotsx()
 
-include("abstract_types.jl")
-include("non_smooth_fxns.jl")
-include("smooth_fxn.jl")
-include("proximal_gradient.jl")
-
-
-using Test, LinearAlgebra, Plots, SparseArrays
 
 
 function make_lasso_problem(
@@ -24,11 +18,11 @@ function make_lasso_problem(
     A = diagm(diagonals) |> sparse
     b = cos.((π/2)*(0:1:N - 1)) .+ 1e-4*rand(N)
     f = Quadratic(A, b, 0)
-    g = MAbs(1)
+    g = MAbs(0.1)
     return f, g
 end
 
-N, μ, L = 1024, 1e-4, 1
+N, μ, L = 1024, 1e-2, 1
 f, g = make_lasso_problem(N, μ, L)
 x0 = N:-1:1 |> collect
 MaxItr = 5000
@@ -68,23 +62,36 @@ optimalityGap1 = replace((x) -> max(x, eps(Float64)), optimalityGap1)
 optimalityGap2 = @. fxnVal2 - fxnMin
 optimalityGap2 = replace((x) -> max(x, eps(Float64)), optimalityGap2)
 
+validIndx1 = findall((x) -> (x > 0), optimalityGap1)
+validIndx2 = findall((x) -> (x > 0), optimalityGap2)
+
 
 fig1 = plot(
-    optimalityGap1, 
+    validIndx1,
+    optimalityGap1[validIndx1], 
     yaxis=:log2,
     label="v-fista",
     title="LASSO Experiment", 
+    size=(1200, 800)
 )
-plot!(fig1, optimalityGap2, label="inexact_vfista", yaxis=:log2)
+plot!(
+    fig1, 
+    validIndx2,
+    optimalityGap2[validIndx2], 
+    label="inexact_vfista"
+)
 fig1 |> display
 
 
 muEstimates = results2.misc
+validIndx = findall((x) -> x > 0, muEstimates)
 fig2 = plot(
-    muEstimates, 
-    yaxis=:log10, 
+    validIndx,
+    muEstimates[validIndx], 
+    yaxis=:log2, 
+    size=(1200, 800),
     title="Strong convexity index estimation, log_10"
 )
-display(fig2)
+fig2 |> display
 
 gradmapNorm = results1.gradient_mapping_norm
