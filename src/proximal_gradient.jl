@@ -410,20 +410,6 @@ end
 
 
 
-function fista(
-    f::SmoothFxn, 
-    g::NonsmoothFxn, 
-    x0::AbstractArray;
-    result_collector::ResultsCollector=ResultsCollector(),
-    eps::Real=1e-18,
-    max_itr::Int=2000, 
-    eta::Real=1, 
-    lipschitz_line_search::Bool=true
-)
-
-end
-
-
 """
 The VIFISTA routine is a constant acceleration, constant stepsize method for function with quadratic growth 
 parameter μ and Lipschitz constant on gradient L. 
@@ -446,12 +432,12 @@ function vfista(
     sc_constant::Real;
     # Named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
-    eps::Number=1e-8,
+    tol::Number=1e-8,
     max_itr::Int=2000
 )::ResultsCollector
 
-    @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"+
-    " and `sc_constant` = 0, however this is not true and we have: "+
+    @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"*
+    " and `sc_constant` = 0, however this is not true and we have: "*
     "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
     L, μ = lipschitz_constant, sc_constant
     κ = L/μ
@@ -482,13 +468,12 @@ function vfista(
             pgradMapVec, 
             fxn_val
         )
-        if norm(x⁺ - y) < eps
+        if norm(x⁺ - y) < tol
             break # <-- Tolerance reached. 
         else
             x = x⁺
             y = y⁺
         end
-
         if k == max_itr
             flag = 1
             break
@@ -502,15 +487,74 @@ end
 function fista(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
-    x0::AbstractArray, 
-    lipschitz_constant::Real;
+    x0::AbstractArray; 
+    lipschitz_constant::Real=1, 
     # Named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
-    eps::Number=1e-8,
+    lipschitz_line_search::Bool=true, 
+    tol::Number=1e-8,
     max_itr::Int=2000
 )
+    L = lipschitz_constant
+    N = max_itr
+    ϵ = tol
+    t = 1
+    x, y = x0, x0
+    
+    # initiate results collector 
+    x, y = x0, x0
+    fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
+    initiate!(result_collector, x0, L^(-1), fxnInitialVal)
+    flag = 0
 
-
+    for k = 1: N
+        
+        # x is updated here 
+        if lipschitz_line_search
+            result = execute_lipz_line_search(f, g, 1/L, x)
+            if isnothing(result) 
+                flag = 2
+                break # <-- Line fucking search failed. 
+            end
+            eta, x⁺ = result
+            L = eta^(-1)
+        else
+            x⁺ = prox_grad(f, g, L^(-1), y)
+        end
+        # extrapolated momentum update for y 
+        t⁺ = sqrt(t^2 + 1/4) + 1/2
+        θ = (t - 1)/t⁺
+        y⁺ = x⁺ + θ*(x⁺ - x)
+        
+        # check if restarted is needed. 
+        
+        # strore results 
+        fxn_val, pgradMapVec = nothing, L*(x⁺ - y)
+        if give_fxnval_nxt_itr(result_collector)
+            fxn_val = f(x⁺) + g(x⁺)
+        end
+        register!(
+            result_collector, 
+            x⁺, 
+            1/L, 
+            pgradMapVec, 
+            fxn_val
+        )
+        if norm(x⁺ - y) < ϵ
+            break
+        end
+        
+        # updates the iterates 
+        x, y = x⁺, y⁺
+        t = t⁺
+        if k == max_itr
+            flag = 1
+            # max iteration reached
+        end
+    end
+    
+    result_collector.flag = flag
+    return result_collector
 
 end
 
@@ -606,7 +650,7 @@ function inexact_vfista(
     sc_constant::Real=1/2, 
     # Named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
-    eps::Number=1e-8,
+    tol::Number=1e-8,
     max_itr::Int=2000, 
     sc_constant_line_search::Bool=false, 
     lipschitz_line_search::Bool=false
@@ -623,42 +667,41 @@ function inexact_vfista(
     ỹ = y # previous iteration of y 
     t = (n) -> (n + 1)/2
     fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
-    estimatedSCConst = Vector{Number}()
-    push!(estimatedSCConst, μ)
+    estimatedSCConst = Vector{Number}(); push!(estimatedSCConst, μ)
     initiate!(result_collector, x0, 1/L, fxnInitialVal)
 
     # iterate
     flag = 0
     for k = 1:max_itr
-        
         # make future iterature x⁺
         if lipschitz_line_search 
             results = execute_lipz_line_search(f, g, 1/L, y)
             if isnothing(results)
                 flag = 2 
-                break 
+                break  # <-- Lipschitz line search failed. 
             end
             η, x⁺ = results 
             L = 1/η  # update Lipschitz constant and iterates
         else
             x⁺ = prox_grad(f, g, 1/L, y)
         end
-        # estimate strong convexity constant
-        if sc_constant_line_search  # estimate strongly convex constant
+        @assert !any(isnan.(x⁺))
+        if sc_constant_line_search  # estimate strong convexity constant
             Df(x1, x2) = f(x1) - f(x2) - dot(grad(f, x2), x1 - x2)
-            μ = (2*Df(x, x⁺)/dot(x - x⁺, x - x⁺) + μ)/2
-            @assert !isnan(μ)
+            μ⁺ = 2*Df(x, x⁺)/dot(x - x⁺, x - x⁺)
+            μ = isnan(μ⁺) ? μ : (μ⁺ + μ)/2
+            @assert !isnan(μ) # <-- Really shouldn't have Nan here. 
         end
         κ = L/μ
         θ = μ > 0 ? ((sqrt(κ) - 1)/(sqrt(κ) + 1)) : 0
         y⁺ = x⁺ + θ*(x⁺ - x)
         push!(estimatedSCConst, μ)
+        
         # results collect
         fxn_val, pgradMapVec = nothing, (1/L)*(x⁺ - x)
         if give_fxnval_nxt_itr(result_collector)
             fxn_val = f(x⁺) + g(x⁺)
         end
-        # collect results
         register!(
             result_collector, 
             x⁺, 
@@ -666,7 +709,7 @@ function inexact_vfista(
             pgradMapVec, 
             fxn_val
         )
-        if norm(x⁺ - y) < eps
+        if norm(x⁺ - y) < tol
             break # <-- Tolerance reached. 
         else
             x = x⁺
@@ -684,3 +727,4 @@ function inexact_vfista(
     result_collector.misc = estimatedSCConst
     return result_collector
 end
+

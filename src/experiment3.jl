@@ -6,45 +6,44 @@ include("proximal_gradient.jl")
 
 
 using Test, LinearAlgebra, Plots, SparseArrays
-pgfplotsx()
 
 
-function make_lasso_problem(
-    N::Integer,
-    μ::Number, 
-    L::Number
+function make_logistic_loss_problem(
+    M::Integer, 
+    N::Integer
 )::Tuple{SmoothFxn, NonsmoothFxn}
-    diagonals = vcat(LinRange(μ, L, N))
-    A = diagm(diagonals) |> sparse
-    b = @. (cos(π*(0:1:N - 1)) + 1)/2
-    f = LogitLoss(A, b)
-    g = MAbs(1)
+    # diagonals = vcat(LinRange(μ, L, N))
+    A = abs.(randn(M, N))
+    b = @. (cos(π*(0:1:M - 1)) + 1)/2
+    f = LogitLoss(A, b, 0.01)
+    g = MAbs(0.0)
     return f, g
 end
 
-N, μ, L = 16, 1e-4, 1
-f, g = make_lasso_problem(N, μ, L)
-x0 = N:-1:1 |> collect
+M, N,= 1024, 785
+
+f, g = make_logistic_loss_problem(M, N)
+x0 = ones(N)
 MaxItr = 5000
 tol = 1e-8
-results1 = vfista(
+results1 = fista(
     f, 
     g, 
     x0, 
-    L, 
-    μ, 
-    eps=tol, 
-    max_itr=MaxItr
+    tol=tol, 
+    max_itr=MaxItr,
+    lipschitz_constant=1
 )
+
 results2 = inexact_vfista(
     f, 
     g, 
     x0, 
-    lipschitz_constant=L, 
-    sc_constant=L, 
+    lipschitz_constant=1, 
+    sc_constant=1/2, 
     lipschitz_line_search=true, 
     sc_constant_line_search=true,
-    eps=tol, 
+    tol=tol, 
     max_itr=MaxItr
 )
 
@@ -69,10 +68,11 @@ fig1 = plot(
     validIndx1,
     optimalityGap1[validIndx1], 
     yaxis=:log2,
-    label="v-fista",
+    label="fista",
     size=(1200, 800),
     title="Logit Regression Experiment", 
 )
+
 plot!(
     fig1, 
     validIndx2,
@@ -80,6 +80,7 @@ plot!(
     label="inexact_vfista"
 )
 fig1 |> display
+savefig(fig1, "logistic_regression_loss.png")
 
 muEstimates = results2.misc
 validIndx = findall((x) -> x > 0, muEstimates)
@@ -91,5 +92,6 @@ fig2 = plot(
     title="Strong convexity index estimation, log_10"
 )
 display(fig2)
+savefig(fig2, "sc_estimates_logistic_loss.png")
 
 gradmapNorm = results1.gradient_mapping_norm

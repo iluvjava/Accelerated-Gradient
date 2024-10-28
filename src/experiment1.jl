@@ -4,10 +4,10 @@ include("smooth_fxn.jl")
 include("proximal_gradient.jl")
 
 
-using Test, LinearAlgebra, Plots, SparseArrays, PlotlyJS
-pgfplotsx()
+using Test, LinearAlgebra, Plots, SparseArrays
+# pgfplotsx()
 
-function make_lasso_problem(
+function make_quadratic_problem(
     N::Integer,
     μ::Number, 
     L::Number
@@ -20,20 +20,26 @@ function make_lasso_problem(
     return f, g
 end
 
-N, μ, L = 64, 1e-4, 1
-f, g = make_lasso_problem(N, μ, L)
-x0 = ones(N)
+N, μ, L = 1024, 1e-8, 1
+f, g = make_quadratic_problem(N, μ, L)
+# x0 = LinRange(0, L, N) |> collect
+x0 = randn(N)
+
 MaxItr = 5000
 tol = 1e-8
+
 results1 = vfista(
     f, 
     g, 
     x0, 
     L, 
     μ, 
-    eps=tol, 
+    tol=tol, 
     max_itr=MaxItr
 )
+
+# results1 = fista(f, g, x0, tol=tol, max_itr=MaxItr)
+
 results2 = inexact_vfista(
     f, 
     g, 
@@ -42,7 +48,7 @@ results2 = inexact_vfista(
     sc_constant=L, 
     lipschitz_line_search=true, 
     sc_constant_line_search=true,
-    eps=tol, 
+    tol=tol, 
     max_itr=MaxItr
 )
 
@@ -70,15 +76,14 @@ fig1 = plot(
 )
 plot!(fig1, optimalityGap2, label="inexact_vfista")
 fig1 |> display
-
+savefig(fig1, "simple_regression_loss.png")
 
 muEstimates = results2.misc
 fig2 = plot(
     muEstimates, 
     yaxis=:log10, 
-    title="Strong convexity index estimation, log_10", 
+    title="Simple regression Strong convexity index estimation, log_10", 
     size=(1200, 800)
 )
 display(fig2)
-
-gradmapNorm = results1.gradient_mapping_norm
+savefig(fig2, "simple_regression_loss_sc_estimates.png")

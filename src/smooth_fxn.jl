@@ -81,12 +81,13 @@ mutable struct LogitLoss <: SmoothFxn
 
     function LogitLoss(
         A::AbstractMatrix, 
-        b::AbstractVector
+        b::AbstractVector, 
+        lambda::Number=0
     )
         this = new()
         this.A = A 
         this.b = b
-        this.fxn = (x) ->  sum(log.(1 .+ exp.(A*x))) + dot(b, A*x)
+        this.fxn = (x) ->  sum(log.(1 .+ exp.(A*x))) - dot(b, A*x) + lambda*dot(x, x)
 
         return this
     end
