@@ -175,7 +175,7 @@ end
 """
     Get all the sparsely collected solutions as an array of vectors. 
 """
-function get_all_solns(this::ResultsCollector)::Vector{Vector}
+function solns(this::ResultsCollector)::Vector{Vector}
     result = Vector{Vector}()
     for k in sort(keys(this.solns)|>collect)
         push!(result, this.solns[k])
@@ -183,7 +183,7 @@ function get_all_solns(this::ResultsCollector)::Vector{Vector}
     return result
 end
 
-function get_all_objective_vals(this::ResultsCollector)::Vector{Number}
+function objectives(this::ResultsCollector)::Vector{Number}
     result = Vector{Number}()
     for k in sort(keys(this.objective_vals)|>collect)
         push!(result, this.objective_vals[k])

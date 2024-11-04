@@ -1,7 +1,7 @@
-include("abstract_types.jl")
-include("non_smooth_fxns.jl")
-include("smooth_fxn.jl")
-include("proximal_gradient.jl")
+include("../src/abstract_types.jl")
+include("../src/non_smooth_fxns.jl")
+include("../src/smooth_fxn.jl")
+include("../src/proximal_gradient.jl")
 
 
 using Test, LinearAlgebra, Plots, SparseArrays
@@ -20,10 +20,10 @@ function make_quadratic_problem(
     return f, g
 end
 
-N, μ, L = 1024, 1e-8, 1
+N, μ, L = 1024, 1e-6, 1
 f, g = make_quadratic_problem(N, μ, L)
 # x0 = LinRange(0, L, N) |> collect
-x0 = randn(N)
+x0 = ones(N)
 
 MaxItr = 5000
 tol = 1e-8
@@ -57,8 +57,8 @@ report_results(results2)
 
 fxnVal1 = get_all_objective_vals(results1)
 fxnVal2 = get_all_objective_vals(results2)
-# fxnMin = min(minimum(fxnVal1), minimum(fxnVal2))
-fxnMin = 0
+
+fxnMin = 0 # we already know the fmin. 
 
 optimalityGap1 = @. fxnVal1 - fxnMin
 optimalityGap1 = replace((x) -> max(x, eps(Float64)), optimalityGap1)
@@ -70,20 +70,29 @@ optimalityGap2 = replace((x) -> max(x, eps(Float64)), optimalityGap2)
 fig1 = plot(
     optimalityGap1, 
     label="v-fista",
-    title="Simple regression", 
+    title="Simple regression (N=$N)", 
     yaxis=:log10, 
-    size=(1200, 800)
+    size=(600, 400), 
+    linewidth=2, 
+    ylabel="Optimality Gap", 
+    xlabel="Iteration Counter", 
+    dpi=300
 )
-plot!(fig1, optimalityGap2, label="inexact_vfista")
+plot!(fig1, optimalityGap2, label="inexact VFISTA", linewidth=3)
 fig1 |> display
-savefig(fig1, "simple_regression_loss.png")
+savefig(fig1, "simple_regression_loss_$N.png")
 
 muEstimates = results2.misc
 fig2 = plot(
     muEstimates, 
     yaxis=:log10, 
-    title="Simple regression Strong convexity index estimation, log_10", 
-    size=(1200, 800)
+    title="Simple Regression μ_k Estimates (N=$N)", 
+    size=(600, 400), 
+    linewidth=2, 
+    ylabel="μ Estimates", 
+    xlabel="Iteration Counter", 
+    dpi=300
 )
 display(fig2)
-savefig(fig2, "simple_regression_loss_sc_estimates.png")
+savefig(fig2, "simple_regression_loss_sc_estimates_$N.png")
+

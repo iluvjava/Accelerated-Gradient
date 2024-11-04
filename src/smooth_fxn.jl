@@ -87,7 +87,7 @@ mutable struct LogitLoss <: SmoothFxn
         this = new()
         this.A = A 
         this.b = b
-        this.fxn = (x) ->  sum(log.(1 .+ exp.(A*x))) - dot(b, A*x) + lambda*dot(x, x)
+        this.fxn = (x) ->  sum(log.(1 .+ exp.(A*x))) - dot(b, A*x) + lambda*dot(x, x)/2
 
         return this
     end

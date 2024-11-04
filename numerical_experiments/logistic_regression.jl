@@ -1,8 +1,8 @@
 
-include("abstract_types.jl")
-include("non_smooth_fxns.jl")
-include("smooth_fxn.jl")
-include("proximal_gradient.jl")
+include("../src/abstract_types.jl")
+include("../src/non_smooth_fxns.jl")
+include("../src/smooth_fxn.jl")
+include("../src/proximal_gradient.jl")
 
 
 using Test, LinearAlgebra, Plots, SparseArrays
@@ -16,11 +16,11 @@ function make_logistic_loss_problem(
     A = abs.(randn(M, N))
     b = @. (cos(π*(0:1:M - 1)) + 1)/2
     f = LogitLoss(A, b, 0.01)
-    g = MAbs(0.0)
+    g = MAbs(0.01)
     return f, g
 end
 
-M, N,= 1024, 785
+M, N,= 64, 32
 
 f, g = make_logistic_loss_problem(M, N)
 x0 = ones(N)
@@ -50,8 +50,8 @@ results2 = inexact_vfista(
 report_results(results1)
 report_results(results2)
 
-fxnVal1 = get_all_objective_vals(results1)
-fxnVal2 = get_all_objective_vals(results2)
+fxnVal1 = objectives(results1)
+fxnVal2 = objectives(results2)
 fxnMin = min(minimum(fxnVal1), minimum(fxnVal2))
 # fxnMin = 0
 
@@ -67,7 +67,7 @@ validIndx2 = findall((x) -> (x > 0), optimalityGap2)
 fig1 = plot(
     validIndx1,
     optimalityGap1[validIndx1], 
-    yaxis=:log2,
+    yaxis=:log10,
     label="fista",
     size=(1200, 800),
     title="Logit Regression Experiment", 

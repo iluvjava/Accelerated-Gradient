@@ -1,7 +1,7 @@
-include("abstract_types.jl")
-include("non_smooth_fxns.jl")
-include("smooth_fxn.jl")
-include("proximal_gradient.jl")
+include("../src/abstract_types.jl")
+include("../src/non_smooth_fxns.jl")
+include("../src/smooth_fxn.jl")
+include("../src/proximal_gradient.jl")
 
 
 using Test, LinearAlgebra, Plots, SparseArrays, Random
@@ -14,15 +14,16 @@ function make_lasso_problem(
 )::Tuple{SmoothFxn, NonsmoothFxn, Real, Real}
     Random.seed!(seed)
     A = randn(N, N)
-    b = cos.((π/2)*(0:1:N - 1)) .+ 1e-4*rand(N)
+    x⁺ = cos.((π/2)*(0:1:N - 1)) .+ 1e-4*rand(N)
+    b = A*x⁺
     f = SquareNormResidual(A, b)
     g = MAbs(0.1)
-    μ = 1/norm(inv(A*A'))
-    L = norm(A*A')
+    μ = 1/norm(inv(A'*A))
+    L = norm(A'*A)
     return f, g, μ, L
 end
 
-N = 16
+N = 64
 f, g, μ, L = make_lasso_problem(N)
 x0 = randn(N)
 MaxItr = 5000
@@ -87,28 +88,32 @@ validIndx3 = findall((x) -> (x > 0), optimalityGap3)
 fig1 = plot(
     validIndx1,
     optimalityGap1[validIndx1], 
-    yaxis=:log2,
+    yaxis=:log10,
     label="v-fista",
-    title="LASSO Experiment", 
-    size=(1200, 800)
+    title="LASSO N=$N", 
+    size=(600, 400), 
+    linewidth=3, 
+    dpi=300, 
+    ylabel="Optimality Gap", 
+    xlabel="Iteration"
 )
-
 plot!(
     fig1,
     validIndx3,
     optimalityGap3[validIndx3], 
     label="fista",
+    linewidth=3, 
 )
-
 plot!(
     fig1, 
     validIndx2,
     optimalityGap2[validIndx2], 
-    label="inexact_vfista"
+    label="inexact_vfista", 
+    linewidth=3
 )
 
 fig1 |> display
-savefig(fig1, "lasso_loss.png")
+savefig(fig1, "lasso_loss_$N.png")
 
 
 muEstimates = results2.misc
@@ -116,11 +121,14 @@ validIndx = findall((x) -> x > 0, muEstimates)
 fig2 = plot(
     validIndx,
     muEstimates[validIndx], 
-    yaxis=:log2, 
-    size=(1200, 800),
-    title="Lassso Strong convexity index estimation, log_10"
+    yaxis=:log10, 
+    size=(600, 400),
+    title="μ_k Estimteas N=$N",
+    ylabel="μ_k", 
+    xlabel="Iteration", 
+    linewidth=3
 )
 fig2 |> display
-savefig(fig2, "lasso_sc_estimates.png")
+savefig(fig2, "lasso_sc_estimates_$N.png")
 
 

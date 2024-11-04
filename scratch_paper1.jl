@@ -63,10 +63,11 @@ begin
     plot(fig)    
 end
 
+
 # Spectral radius plotted against the momentum theta. 
 begin
     thetas = LinRange(0, 1, 1000)
-    τ = 0.75
+    τ = 1
     θ⁺ = (sqrt(1/(1 - τ)) - 1)/(sqrt(1/(1 - τ)) + 1)
     maxEigens = Vector()
     imaginary = Vector()
@@ -89,7 +90,8 @@ end
 
 
 # spectral radius 2d visualizations plot 
-begin 
+begin
+
 
 end
 

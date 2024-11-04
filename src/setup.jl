@@ -10,7 +10,8 @@ Pkg.add(
         "UnicodePlots", 
         "Zygote", 
         "Plotly", 
-        "PGFPlotsX"
+        "PGFPlotsX", 
+        "MLDatasets"
     ])
 
 
