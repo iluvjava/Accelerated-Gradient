@@ -218,8 +218,6 @@ end
 
 
 
-
-
 # ==============================================================================
 # PROXIMAL GRADIENT METHOD AND THEIR VARIANTS
 # ==============================================================================
@@ -279,6 +277,7 @@ function execute_lipz_line_search(
     return nothing
 end
 
+
 function execute_sc_const_line_search(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
@@ -323,6 +322,10 @@ function execute_sc_const_line_search(
     return mu, newX
 end
 
+
+# ==============================================================================
+# Full proximal gradient algorithm starts here. 
+# ==============================================================================
 
 
 """
@@ -728,3 +731,43 @@ function inexact_vfista(
     return result_collector
 end
 
+
+## =====================================================================================================================
+## R-WAPG ALGORITHM NOW FOLLOWS
+## =====================================================================================================================
+
+
+"""
+Perform R-WAPG algorithm for exactly one step and return the result vectors. 
+## Positional Arguments
+
+"""
+function inner_rwapg(
+        f::SmoothFxn, 
+        g::NonsmoothFxn,
+        x::Vector{Number}, 
+        y::Vector{Number}, 
+        alpha1::Number, 
+        rho::Number,
+        mu::Number, 
+        L::Number 
+    )::Tuple{Vector{Number}, Vector{Number}, Number}
+    #check and assert conditions. 
+    @assert alpha1 > 0 && alpha1 < 1 "Parameter alpha1 not in range. "*
+    "Condition: \"alpha1 = $alpha1 ∈ [0,1)\" FALSE. "
+    @assert 0 <= (alpha1^2)*rho < 1 "Parameter rho, alpha1 fails to adhere condition \"0 <= alpha1*rho < 1\""*
+    "It has instead: alpha1=$alpha1, rho=$rho. "
+    @assert 0 <= mu && mu <= L "mu, L, the strong convexity and smoothness parameters are faulty. "*
+    "They violated the constaint 0 <= μ <= L. We had: μ = $mu, L = $L as the inputs. "
+
+    # execute exactly one step of the algorithm and returns the relevant parameters. 
+    r = rho*alpha1^2
+    ρ = rho
+    α = alpha1
+    κ = mu/L
+    α⁺ = (1/2)*(κ - r + sqrt((κ - r)^2 + 4r))
+    θ = ρ*α*(1 - α)/(ρ*α^2 + α⁺)
+    x⁺ = prox_grad(f, g, 1/L, y)
+    y⁺ = x⁺ + θ*(x⁺ - x)
+    return x⁺, y⁺, α⁺
+end

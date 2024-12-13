@@ -31,7 +31,7 @@ using Test, LinearAlgebra, UnicodePlots
             return false
         end
         report_results(results)
-        xs = get_all_objective_vals(results)
+        xs = objectives(results)
         ks = 1:length(xs)
         println(lineplot(ks, xs, title="ISTA BASIC TEST1", yscale=:log2))
         
@@ -55,7 +55,7 @@ using Test, LinearAlgebra, UnicodePlots
             return false
         end
         report_results(results)
-        xs = get_all_objective_vals(results)
+        xs = objectives(results)
         ks = 1:length(xs)
         println(lineplot(ks, xs, title="basicVFISTATest1",yscale=:log2))
 
@@ -75,7 +75,7 @@ using Test, LinearAlgebra, UnicodePlots
         results = fista(f, g, x0, tol=1e-2)
         
         report_results(results)
-        xs = get_all_objective_vals(results)
+        xs = objectives(results)
         ks = 1:length(xs)
         println(lineplot(ks, xs, title="basicFISTATest1", yscale=:log2))
         
@@ -107,7 +107,7 @@ using Test, LinearAlgebra, UnicodePlots
         )
         
         report_results(results)
-        xs = get_all_objective_vals(results)
+        xs = objectives(results)
         ks = 1:length(xs)
         println(lineplot(ks, xs, title="basicInexactVFISTA",  yscale=:log2))
         
@@ -119,6 +119,7 @@ using Test, LinearAlgebra, UnicodePlots
         return true # runned without obvious issue. 
     end
 
+    
 
     # sanity test 
     @test true
