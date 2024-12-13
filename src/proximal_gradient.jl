@@ -218,21 +218,21 @@ end
 
 
 
-# ==============================================================================
-# PROXIMAL GRADIENT METHOD AND THEIR VARIANTS
-# ==============================================================================
+## =====================================================================================================================
+## PROXIMAL GRADIENT METHOD AND THEIR VARIANTS
+## =====================================================================================================================
 
-function prox_grad(
-    f::SmoothFxn, 
-    g::NonsmoothFxn, 
-    eta::Number, 
-    x::AbstractArray
-)::AbstractArray
-    @assert eta > 0 "Error, should be eta > 0 but we have eta = $(eta). "
-    x = x - eta*grad(f, x)
-    x = prox(g, eta, x)
-    return x
-end 
+# function prox_grad(
+#     f::SmoothFxn, 
+#     g::NonsmoothFxn, 
+#     eta::Number, 
+#     x::AbstractArray
+# )::AbstractArray
+#     @assert eta > 0 "Error, should be eta > 0 but we have eta = $(eta). "
+#     x = x - eta*grad(f, x)
+#     x = prox(g, eta, x)
+#     return x
+# end 
 
 
 function pgrad_map(
@@ -244,83 +244,100 @@ function pgrad_map(
 return x - prox_grad(f, g, eta, x) end
 
 
-function execute_lipz_line_search(
+"""
+function performs Lipschitz line search and a step of proximal gradient at the same time. 
+It tests on whether (L/2)|| x - T_L(x) ||^2 >= D_f(x, T_L(x)), and L = eta^(-1), with input `x` fixed. 
+
+## Positional Arguments
+
+## Named Arguments
+
+
+## Returns
+1. `Tuple{Real, AbstractVector}`: Success and the next iterates with the new stepsize eta is returned. 
+2. `Nothing`: Line search failed to produce stepsize larger than the smallest tolerance. 
+3. 
+
+"""
+function prox_grad(
     f::SmoothFxn, 
     g::NonsmoothFxn,
     eta::Real, 
     x::AbstractVector,
+    line_search::Bool=false,
     tol=1e-10; 
-    # named vector
+    # named arguments
     lazy::Bool=false
 )::Union{Tuple{Real, AbstractVector}, Nothing}
     
-    d(y) = f(y) - f(x) - dot(grad(f, x), y - x) # <-- Bregman divergence of the smooth part. 
-    y = prox_grad(f, g, eta, x)
-    dotted = dot(y - x, y - x)
-    
-    if lazy
-        # lazy then just update the Lipschitz constant, and not the future iterates. 
-        eta = (1/2)*dotted/d(y)
-    else
-        while eta >= tol &&  d(y) >= 1/(2*eta)*dotted
-            eta /= 2
-            y = prox_grad(f, g, eta, x)
-            dotted = dot(y - x, y - x)
+    if line_search
+        d(y) = f(y) - f(x) - dot(grad(f, x), y - x) # <-- Bregman divergence of the smooth part. 
+        y = prox(g, eta, x - eta*grad(f, x))
+        dotted = dot(y - x, y - x)
+
+        if lazy
+            # lazy then just update the Lipschitz constant, and not the future iterates. 
+            eta = (1/2)*dotted/d(y)
+        else
+            while eta >= tol &&  d(y) >= 1/(2*eta)*dotted
+                eta /= 2
+                y = prox(g, eta, x - eta*grad(f, x))
+                dotted = dot(y - x, y - x)
+            end
         end
-    end
-    
-    
-    if eta >= tol
-        return eta, y
+        
+        if eta >= tol
+            return eta, y
+        end
+        
+        return nothing
     end
 
-    return nothing
+    return eta, prox(g, eta, x - eta*grad(f, x))
+    
 end
 
 
-function execute_sc_const_line_search(
-    f::SmoothFxn, 
-    g::NonsmoothFxn, 
-    lipschitz_constant::Real, 
-    sc_constant::Real, 
-    x::AbstractVector, 
-    y::AbstractVector;
-    # named arguments 
-    tol=1e-10, 
-    lazy::Bool=false
-)::Union{Tuple{Real, AbstractVector}, Nothing}
-    L = lipschitz_constant
-    mu = sc_constant
-    d(z) = f(z) - f(y) - dot(grad(f, y), z - y) # <-- Bregman divergence of the smooth part, fixed on x. 
-    # d(z) = 2*dot(grad(f, z) - grad(f, y), z - y)
-    Ty = prox_grad(f, g, 1/L, y)
-    X(μ, x) = (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ)/μ)*(y - Ty)  # <-- Probing the next "ghost" iterates based on the PPM APG interpretation 
-    
-    newX = X(mu, x)
-    bregD = d(newX)
-    dotted = dot(newX - x, newX - x)
-    
-    if lazy
-        # only update mu
-        mu = min(mu, 2*bregD/dotted)
-    else
-        # do a iterative line search using BD 
-        while bregD < (mu/2)*dotted
-            mu /= 2
-            # mu = (2bregD/dotted)^2
-            # update all because mu changed. 
-            newX = X(mu, x)
-            bregD = d(newX)
-            dotted = dot(newX - x, newX - x)
-        end
-    end
-
-    if mu >= tol 
-        return mu, newX
-    end
-    # tolerance violated. 
-    return mu, newX
-end
+# function execute_sc_const_line_search(
+#     f::SmoothFxn, 
+#     g::NonsmoothFxn, 
+#     lipschitz_constant::Real, 
+#     sc_constant::Real, 
+#     x::AbstractVector, 
+#     y::AbstractVector;
+#     # named arguments 
+#     tol=1e-10, 
+#     lazy::Bool=false
+# )::Union{Tuple{Real, AbstractVector}, Nothing}
+#     L = lipschitz_constant
+#     mu = sc_constant
+#     d(z) = f(z) - f(y) - dot(grad(f, y), z - y) # <-- Bregman divergence of the smooth part, fixed on x. 
+#     # d(z) = 2*dot(grad(f, z) - grad(f, y), z - y)
+#     Ty = prox_grad(f, g, 1/L, y)
+#     X(μ, x) = (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ)/μ)*(y - Ty)  # <-- Probing the next "ghost" iterates based on the PPM APG interpretation 
+#     newX = X(mu, x)
+#     bregD = d(newX)
+#     dotted = dot(newX - x, newX - x)
+#     if lazy
+#         # only update mu
+#         mu = min(mu, 2*bregD/dotted)
+#     else
+#         # do a iterative line search using BD 
+#         while bregD < (mu/2)*dotted
+#             mu /= 2
+#             # mu = (2bregD/dotted)^2
+#             # update all because mu changed. 
+#             newX = X(mu, x)
+#             bregD = d(newX)
+#             dotted = dot(newX - x, newX - x)
+#         end
+#     end
+#     if mu >= tol 
+#         return mu, newX
+#     end
+#     # tolerance violated. 
+#     return mu, newX
+# end
 
 
 # ==============================================================================
@@ -341,7 +358,7 @@ and algorithm statistics.
 - `eps`: pgrad map tolerance for terminations. 
 - `max_itr`: The maximal iterations for terminations if it's reached. 
 - `eta`: The initial stepsize for the algorithm. 
-- `lipschitz_linear_search`: Wether to employ simple line search subroutine for 
+- `lipschitz_line_search`: Wether to employ simple line search subroutine for 
 determining the stepsize at each iteratin. 
 """
 function ista(
@@ -356,10 +373,8 @@ function ista(
     lipschitz_line_search::Bool=true
 )::ResultsCollector
 
-    # Initiates 
     x = x0
     flag = 0
-
     if give_fxnval_nxt_itr(result_collector)
         initialObjVal = f(x) + g(x)
     else
@@ -371,25 +386,20 @@ function ista(
     for k in 1:max_itr
         xPre = x
 
-        # x is updated here 
-        if lipschitz_line_search
-            result = execute_lipz_line_search(f, g, eta, xPre)
-            if isnothing(result) 
-                flag = 2
-                break # <-- Line fucking search failed. 
-            end
-            eta, x = result
-        else
-            x = prox_grad(f, g, eta, x)
+        # Proximal gradient step. 
+        result = prox_grad(f, g, eta, xPre, lipschitz_line_search)
+        if isnothing(result) 
+            flag = 2
+            break # <-- Line search fucking search failed. 
         end
+        eta, x = result
+
         
+        # results collection
         fxn_val, pgradMapVec = nothing, eta^(-1)*(x - xPre)
-        
         if give_fxnval_nxt_itr(result_collector)
             fxn_val = f(x) + g(x)
         end
-
-        # collect results
         register!(
             result_collector, 
             x, 
@@ -398,10 +408,12 @@ function ista(
             fxn_val
         )
 
+        # Termination criteria
         if norm(x - xPre) < eps
-            break # <-- Tolerance reached. 
+            break   # <-- Tolerance reached, flag: 0
         end
 
+        # Maximum iteration exceeded. 
         if k == max_itr
             flag = 1 # <-- Maxmum iteration reached. 
         end
@@ -455,7 +467,7 @@ function vfista(
     flag = 0
     for k = 1:max_itr
         
-        x⁺ = prox_grad(f, g, η, y)
+        _, x⁺= prox_grad(f, g, η, y)
         y⁺ = x⁺ + ((sqrt(κ) - 1)/(sqrt(κ) + 1))*(x⁺ - x)
         
         # results collect
@@ -513,23 +525,20 @@ function fista(
     for k = 1: N
         
         # x is updated here 
-        if lipschitz_line_search
-            result = execute_lipz_line_search(f, g, 1/L, x)
-            if isnothing(result) 
-                flag = 2
-                break # <-- Line fucking search failed. 
-            end
-            eta, x⁺ = result
-            L = eta^(-1)
-        else
-            x⁺ = prox_grad(f, g, L^(-1), y)
+        result = prox_grad(f, g, 1/L, x, lipschitz_line_search)
+        if isnothing(result) 
+            flag = 2
+            break # <-- Line fucking search failed. 
         end
+        eta, x⁺ = result
+        L = eta^(-1)
+
         # extrapolated momentum update for y 
         t⁺ = sqrt(t^2 + 1/4) + 1/2
         θ = (t - 1)/t⁺
         y⁺ = x⁺ + θ*(x⁺ - x)
         
-        # check if restarted is needed. 
+        # Montone restart here. 
         
         # strore results 
         fxn_val, pgradMapVec = nothing, L*(x⁺ - y)
@@ -563,87 +572,85 @@ end
 
 
 
-function ppm_apg(
-    f::SmoothFxn, 
-    g::NonsmoothFxn, 
-    x0::AbstractArray;
-    # named arguments 
-    result_collector::ResultsCollector=ResultsCollector(), 
-    eps::Real=1e-8,
-    max_itr::Int=2000, 
-    lipschitz_constant::Real=1, 
-    sc_constant::Real=0.5,
-    lipschitz_line_search::Bool=false, 
-    sc_constant_line_search::Bool=false
-)::ResultsCollector
-    throw(ErrorException("ALGORITHM DEPRECATED. "))
-    @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"*
-    " and `sc_constant` = 0, however this is not true and we have: "*
-    "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
-    L, μ = lipschitz_constant, sc_constant
-    # initiate
-    x, y = x0, x0
-    flag = 0
-    fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
-    initiate!(result_collector, x0, 1/L, fxnInitialVal)
-    scConstEstimates = Vector{Number}()
-    # iterates 
-    for k in 1:max_itr
-        if lipschitz_line_search
-            results = execute_lipz_line_search(f, g, 1/L, y)
-            if isnothing(results)
-                flag = 2   
-                break # <--  Lipschitz line search breaks near point: y
-            end
-            s, Ty = results 
-            L = 1/s
-        else
-            Ty = prox_grad(f, g, 1/L, y)
-        end
-        if sc_constant_line_search
-            results = execute_sc_const_line_search(f, g, L, μ, x, y)
-            if isnothing(results)
-                flag = 2 # <-- Strong sc constant search failed 
-                break 
-            end
-            μ, x⁺ = results
-            push!(scConstEstimates,  μ)
-        else
-            ρ = sqrt(L/μ)
-            x⁺ = (1/ρ)*(y - x) + x - (1/(ρ*μ))*L*(y - Ty)
-            #  (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ)/μ)*(y - Ty)
-        end
-        ρ = sqrt(L/μ)
-        y⁺ = (ρ*Ty + x⁺)/(1 + ρ)
-        # results collect
-        fxn_val, pgradMapVec = nothing, L*(y - Ty)
-        if give_fxnval_nxt_itr(result_collector)
-            fxn_val = f(Ty) + g(Ty)
-        end
-        register!(
-            result_collector, 
-            x, 
-            1/L, 
-            pgradMapVec, 
-            fxn_val
-        )
-        if norm(y - Ty) < eps
-            println("tolerance reached. ")
-            break # <-- Tolerance reached. 
-        else
-            x, y = x⁺, y⁺
-        end
-        if k == max_itr
-            flag = 1
-            # max iteration reached
-        end
-    end
-    result_collector.misc = scConstEstimates
-    result_collector.flag = flag
-    return result_collector
-end
-
-
+# function ppm_apg(
+#     f::SmoothFxn, 
+#     g::NonsmoothFxn, 
+#     x0::AbstractArray;
+#     # named arguments 
+#     result_collector::ResultsCollector=ResultsCollector(), 
+#     eps::Real=1e-8,
+#     max_itr::Int=2000, 
+#     lipschitz_constant::Real=1, 
+#     sc_constant::Real=0.5,
+#     lipschitz_line_search::Bool=false, 
+#     sc_constant_line_search::Bool=false
+# )::ResultsCollector
+#     throw(ErrorException("ALGORITHM DEPRECATED. "))
+#     @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"*
+#     " and `sc_constant` = 0, however this is not true and we have: "*
+#     "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
+#     L, μ = lipschitz_constant, sc_constant
+#     # initiate
+#     x, y = x0, x0
+#     flag = 0
+#     fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
+#     initiate!(result_collector, x0, 1/L, fxnInitialVal)
+#     scConstEstimates = Vector{Number}()
+#     # iterates 
+#     for k in 1:max_itr
+#         if lipschitz_line_search
+#             results = execute_lipz_line_search(f, g, 1/L, y)
+#             if isnothing(results)
+#                 flag = 2   
+#                 break # <--  Lipschitz line search breaks near point: y
+#             end
+#             s, Ty = results 
+#             L = 1/s
+#         else
+#             Ty = prox_grad(f, g, 1/L, y)
+#         end
+#         if sc_constant_line_search
+#             results = execute_sc_const_line_search(f, g, L, μ, x, y)
+#             if isnothing(results)
+#                 flag = 2 # <-- Strong sc constant search failed 
+#                 break 
+#             end
+#             μ, x⁺ = results
+#             push!(scConstEstimates,  μ)
+#         else
+#             ρ = sqrt(L/μ)
+#             x⁺ = (1/ρ)*(y - x) + x - (1/(ρ*μ))*L*(y - Ty)
+#             #  (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ)/μ)*(y - Ty)
+#         end
+#         ρ = sqrt(L/μ)
+#         y⁺ = (ρ*Ty + x⁺)/(1 + ρ)
+#         # results collect
+#         fxn_val, pgradMapVec = nothing, L*(y - Ty)
+#         if give_fxnval_nxt_itr(result_collector)
+#             fxn_val = f(Ty) + g(Ty)
+#         end
+#         register!(
+#             result_collector, 
+#             x, 
+#             1/L, 
+#             pgradMapVec, 
+#             fxn_val
+#         )
+#         if norm(y - Ty) < eps
+#             println("tolerance reached. ")
+#             break # <-- Tolerance reached. 
+#         else
+#             x, y = x⁺, y⁺
+#         end
+#         if k == max_itr
+#             flag = 1
+#             # max iteration reached
+#         end
+#     end
+#     result_collector.misc = scConstEstimates
+#     result_collector.flag = flag
+#     return result_collector
+# end
 
 function inexact_vfista(
     f::SmoothFxn, 
@@ -678,7 +685,7 @@ function inexact_vfista(
     for k = 1:max_itr
         # make future iterature x⁺
         if lipschitz_line_search 
-            results = execute_lipz_line_search(f, g, 1/L, y)
+            results = prox_grad(f, g, 1/L, y)
             if isnothing(results)
                 flag = 2 
                 break  # <-- Lipschitz line search failed. 
@@ -739,10 +746,16 @@ end
 
 """
 Perform R-WAPG algorithm for exactly one step and return the result vectors. 
+It does the following thing: 
+1. Generate x⁺, the next step. 
+2. Extrapolate y⁺ using momentum rules specified by the R-WAPG algorithm. 
+3. Perform line searches if asked. 
+
 ## Positional Arguments
 
 """
 function inner_rwapg(
+        # Positional arguments. 
         f::SmoothFxn, 
         g::NonsmoothFxn,
         x::Vector{Number}, 
@@ -750,11 +763,15 @@ function inner_rwapg(
         alpha1::Number, 
         rho::Number,
         mu::Number, 
-        L::Number 
+        L::Number; 
+        # Optinal arguments. 
+        lipschitz_line_search::Bool=false, 
+        sc_constant_search::Bool=false,
     )::Tuple{Vector{Number}, Vector{Number}, Number}
+    
     #check and assert conditions. 
     @assert alpha1 > 0 && alpha1 < 1 "Parameter alpha1 not in range. "*
-    "Condition: \"alpha1 = $alpha1 ∈ [0,1)\" FALSE. "
+    "Condition: \"alpha1 = $alpha1 ∈ (0,1)\" FALSE. "
     @assert 0 <= (alpha1^2)*rho < 1 "Parameter rho, alpha1 fails to adhere condition \"0 <= alpha1*rho < 1\""*
     "It has instead: alpha1=$alpha1, rho=$rho. "
     @assert 0 <= mu && mu <= L "mu, L, the strong convexity and smoothness parameters are faulty. "*
@@ -769,5 +786,45 @@ function inner_rwapg(
     θ = ρ*α*(1 - α)/(ρ*α^2 + α⁺)
     x⁺ = prox_grad(f, g, 1/L, y)
     y⁺ = x⁺ + θ*(x⁺ - x)
+
     return x⁺, y⁺, α⁺
 end
+
+
+"""
+Function implements FISTA, with restart and line search using R-WAPG. 
+
+"""
+function rwapg_fista(
+
+    )
+
+end
+
+
+"""
+Function implements a parameter free variant of the V-FISTA algorithm. 
+
+
+
+"""
+function rwapg_vfista(
+    # Basic positional arguments
+    f::SmoothFxn, 
+    g::NonsmoothFxn, 
+    x0::AbstractArray, 
+    lipschitz_constant::Real,
+    sc_constant::Real;
+    # Named arguments set: Algorithm execuation
+    result_collector::ResultsCollector=ResultsCollector(), 
+    tol::Number=1e-8,
+    max_itr::Int=2000, 
+    lipschitz_line_search::Bool=false, 
+    sc_constant_search::Bool=false,
+    # Named argument set: Advanced R-WAPG parameters 
+    rho::Number=1
+    )
+
+
+end
+

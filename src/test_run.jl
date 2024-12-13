@@ -7,7 +7,7 @@ include("proximal_gradient.jl")
 using Test, LinearAlgebra, UnicodePlots
 
 
-@testset "Test Set 1" begin 
+@testset "Test Set 1: Tranditional Momentum Algorithm" begin 
     
 
     """
@@ -15,10 +15,7 @@ using Test, LinearAlgebra, UnicodePlots
     """
     function basicISTATest1()
         
-        # just throw assertion error if something went wrong with the numerics of the algorithm. 
-        # this function go through the ISTA algorithm with different setting as a run through of stuff
-        # from most part of the code base. 
-        @info "Testing: basicISTATest1"
+        @info "Testing: ISTA with Lipschitz Line Search. "
         n = 100
         L, μ = 1, 1e-2
         A = Diagonal(LinRange(μ, L, n))
@@ -26,7 +23,7 @@ using Test, LinearAlgebra, UnicodePlots
         f = Quadratic(A, b, 0)
         g = MAbs(0.01)
         x0 = 100*ones(n)
-        results = ista(f, g, x0, eps=1e-2, eta=1/L)
+        results = ista(f, g, x0, eps=1e-2, eta=4/L, lipschitz_line_search=true)
         if results.flag != 0
             return false
         end
@@ -119,7 +116,7 @@ using Test, LinearAlgebra, UnicodePlots
         return true # runned without obvious issue. 
     end
 
-    
+
 
     # sanity test 
     @test true
@@ -127,4 +124,19 @@ using Test, LinearAlgebra, UnicodePlots
     @test basicVFISTATest1()
     @test basicFISTATest1()
     @test basicInexactVFISTA()
+end
+
+
+@testset "TEST SUIT: R-WAPG" begin 
+    @info "TEST SUIT: R-WAPG soft scope loaded. "
+
+    function SanityCheck()
+        return true
+    end
+
+    @test SanityCheck()
+    @info "TEST SUIT: R-WAPG sanity check passed, real tests start. "
+
+    
+
 end
