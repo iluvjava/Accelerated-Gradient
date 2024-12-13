@@ -143,7 +143,10 @@ function register!(
     obj_val::Union{Real, Nothing}=nothing, 
 )
     if this.itr_counter == -1
-        throw(ErrorException("ProxGrad Results is called without initiation."))
+        throw(ErrorException(
+            "ProxGrad Results is called without initiation."*
+            "Please initiate instance via the `initiate!` function. "
+            ))
     end
     
     # increment counter and register current solution. 
@@ -222,17 +225,6 @@ end
 ## PROXIMAL GRADIENT METHOD AND THEIR VARIANTS
 ## =====================================================================================================================
 
-# function prox_grad(
-#     f::SmoothFxn, 
-#     g::NonsmoothFxn, 
-#     eta::Number, 
-#     x::AbstractArray
-# )::AbstractArray
-#     @assert eta > 0 "Error, should be eta > 0 but we have eta = $(eta). "
-#     x = x - eta*grad(f, x)
-#     x = prox(g, eta, x)
-#     return x
-# end 
 
 
 function pgrad_map(
@@ -498,22 +490,21 @@ function fista(
     result_collector::ResultsCollector=ResultsCollector(), 
     lipschitz_line_search::Bool=true, 
     tol::Number=1e-8,
-    max_itr::Int=2000
-)
+    max_itr::Int=2000, 
+    mono_restart::Bool=false
+)::ResultsCollector
     L = lipschitz_constant
     N = max_itr
     ϵ = tol
     t = 1
     x, y = x0, x0
-    
     # initiate results collector 
-    x, y = x0, x0
-    fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
-    initiate!(result_collector, x0, L^(-1), fxnInitialVal)
+    _initial_fxn_val = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
+    _running_fxn_val = mono_restart ? f(x) + g(y) : nothing
+    initiate!(result_collector, x0, L^(-1), _initial_fxn_val)
     flag = 0
 
     for k = 1: N
-        
         # x is updated here 
         result = prox_grad(f, g, 1/L, y, lipschitz_line_search)
         if isnothing(result) 
@@ -522,24 +513,32 @@ function fista(
         end
         eta, x⁺ = result
         L = eta^(-1)
-
         # extrapolated momentum update for y 
         t⁺ = sqrt(t^2 + 1/4) + 1/2
         θ = (t - 1)/t⁺
-        y⁺ = x⁺ + θ*(x⁺ - x)
-        
-        
-        # strore results 
-        fxn_val, pgradMapVec = nothing, L*(x⁺ - y)
-        if give_fxnval_nxt_itr(result_collector)
-            fxn_val = f(x⁺) + g(x⁺)
+        # strore, check results
+        _new_fxn_val, pgradMapVec = nothing, L*(x⁺ - y)
+        if give_fxnval_nxt_itr(result_collector) || mono_restart
+            _new_fxn_val = f(x⁺) + g(x⁺)
+            if mono_restart
+                _running_fxn_val = min(_new_fxn_val, _running_fxn_val)
+            end
         end
+
+        # forced restart triggered
+        if mono_restart && _running_fxn_val < _new_fxn_val
+            y⁺ = x + (t/t⁺)*(x - x⁺)
+            x⁺ = x # reset 
+        else
+            y⁺ = x⁺ + θ*(x⁺ - x)
+        end
+
         register!(
             result_collector, 
             x⁺, 
             1/L, 
             pgradMapVec, 
-            fxn_val
+            _new_fxn_val
         )
         if norm(x⁺ - y) < ϵ
             break
@@ -739,30 +738,38 @@ It does the following thing:
 This function should only be used by `rwapg_vfista`. 
 
 ## Positional Arguments
-
+- `f::SmoothFxn`
+- `g::NonsmoothFxn`
+- `x::Vector{Number}`
+- `y::Vector{Number}`
+- `alpha1::Number`
+- `rho::Number`
+- `mu::Number`
+- `L::Number`
 ## Named argument
 
 ## Returns
 If Lipschitz line search went through: `x⁺, y⁺, α⁺, L`; else: `Nothing`
+
+
 """
 function inner_rwapg(
-        # Positional arguments. 
-        f::SmoothFxn, 
-        g::NonsmoothFxn,
-        x::Vector{Number}, 
-        y::Vector{Number}, 
-        alpha1::Number, 
-        rho::Number,
-        mu::Number, 
-        L::Number; 
-        # Optinal arguments. 
-        lipschitz_line_search::Bool=false, 
-    )::Union{Tuple{Vector{Number}, Vector{Number}, Number, Number}, Nothing}
-    
+    # Positional arguments. 
+    f::SmoothFxn, 
+    g::NonsmoothFxn,
+    x::AbstractArray, 
+    y::AbstractArray, 
+    alpha1::Number, 
+    rho::Number,
+    mu::Number, 
+    L::Number; 
+    # Optinal arguments. 
+    lipschitz_line_search::Bool=false, 
+)::Union{Tuple{AbstractArray, AbstractArray, Number, Number}, Nothing}
     #check and assert conditions. 
     @assert alpha1 > 0 && alpha1 <= 1 "Parameter alpha1 not in range. "*
     "Condition: \"alpha1 = $alpha1 ∈ (0,1]\" FALSE. "
-    @assert 0 <= (alpha1^2)*rho < 1 "Parameter rho, alpha1 fails to adhere condition \"0 <= alpha1*rho < 1\""*
+    @assert 0 <= (alpha1^2)*rho <= 1 "Parameter rho, alpha1 fails to adhere condition \"0 <= alpha1*rho < 1\""*
     "It has instead: alpha1=$alpha1, rho=$rho. "
     @assert 0 <= mu && mu <= L "mu, L, the strong convexity and smoothness parameters are faulty. "*
     "They violated the constaint 0 <= μ <= L. We had: μ = $mu, L = $L as the inputs. "
@@ -786,36 +793,58 @@ end
 """
 Function implements FISTA, with restart and line search using R-WAPG. 
 
+## Positional arguments 
+- `f::SmoothFxn`: Required. 
+- `g::NonsmoothFxn`: Required
+- `x0::AbstractArray`: Required
+- `lip_const::Real`: Required 
+- `scnvx_const::Real=0`: Optional
+
+## Named arguments
+
+- `result_collector::ResultsCollector=ResultsCollector()`: 
+- `tol::Number=1e-8`: 
+- `max_itr::Int=2000`: 
+- `lipschitz_line_search::Bool=false`: 
 
 """
-function rwapg_fista(
+function rwapg(
     # Basic positional arguments
     f::SmoothFxn, 
     g::NonsmoothFxn, 
     x0::AbstractArray, 
     lip_const::Real,
+    scnvx_const::Real=0,
+    rho::Real=1;
     # Named arguments set: Algorithm execuation
     result_collector::ResultsCollector=ResultsCollector(), 
     tol::Number=1e-8,
     max_itr::Int=2000, 
-    lipschitz_line_search::Bool=false
+    lipschitz_line_search::Bool=false, 
+    estimate_scnvx_const::Bool=false
+    
 )
     # Initial execution parameters. 
-    L = lip_const # <-- Changing in loop. 
-    μ = 0         # <-- Changing in loop. 
-    α = 1         # <-- Changing in loop. 
-    ϵ = tol 
+    L = lip_const           # <-- Changing in loop. 
+    μ = scnvx_const         # <-- Changing in loop. 
+    α = 1                   # <-- Changing in loop. 
+    ρ = rho
+    ϵ = tol       
     m = max_itr 
     x = x0        # <-- Changing in loop. 
     y = x0        # <-- Changing in loop. 
-    flag = 0
+    _flag = 0
+    # results collector initialization. 
+    _initial_fxn = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
+    _sconvx_estimated = Vector{Number}(); push!(_sconvx_estimated, μ)
+    initiate!(result_collector, x0, 1/L, _initial_fxn)
     for k = 1:m
         # proximal gradient on y for x. 
         returned = inner_rwapg(
-            f, g, x, y, α, 1, 0, L, 
+            f, g, x, y, α, ρ, μ, L, 
             lipschitz_line_search=lipschitz_line_search
         )
-        if isnothing(returned) break; flag = 2; end
+        if isnothing(returned) break; _flag = 2; end
         x⁺, y⁺, α⁺, L = returned
         # s-convx const estimate. 
         if estimate_scnvx_const
@@ -823,6 +852,7 @@ function rwapg_fista(
             μ⁺ = 2*Df(x, x⁺)/dot(x - x⁺, x - x⁺)
             μ = isnan(μ⁺) ? μ : (μ⁺ + μ)/2
             @assert !isnan(μ) # <-- Really shouldn't have Nan here. 
+            push!(_sconvx_estimated, μ)
         end
         # results collect
         F⁺, G = nothing, (1/L)*(x⁺ - y)
@@ -837,37 +867,12 @@ function rwapg_fista(
             x = x⁺; y = y⁺; α = α⁺
         end
         if k == m
-            flag = 1 # <-- Maximum iteration reached. 
+            _flag = 1 # <-- Maximum iteration reached. 
         end
     end
-end
-
-
-"""
-Function implements a parameter free variant of the V-FISTA algorithm. 
-1. Support exact Lipschitz, s-cnvx parameters. 
-2. Supports estimated s-cnvx parameters. 
-3. Supports relaxed momentum parameter with a constant relaxations. 
-
-
-"""
-function rwapg_vfista(
-    # Basic positional arguments
-    f::SmoothFxn, 
-    g::NonsmoothFxn, 
-    x0::AbstractArray, 
-    lipschitz_constant::Real,
-    sc_constant::Real;
-    # Named arguments set: Algorithm execuation
-    result_collector::ResultsCollector=ResultsCollector(), 
-    tol::Number=1e-8,
-    max_itr::Int=2000, 
-    lipschitz_line_search::Bool=false, 
-    estimate_scnvx_const::Bool=false,
-    # Named argument set: Advanced R-WAPG parameters 
-    rho::Number=1
-    )
-
-
+    # closing and return. 
+    result_collector.flag = _flag
+    result_collector.misc = _sconvx_estimated
+    return result_collector
 end
 

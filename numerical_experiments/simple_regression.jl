@@ -5,7 +5,7 @@ include("../src/proximal_gradient.jl")
 
 
 using Test, LinearAlgebra, Plots, SparseArrays
-# pgfplotsx()
+
 
 function make_quadratic_problem(
     N::Integer,
@@ -37,17 +37,14 @@ results1 = vfista(
     tol=tol, 
     max_itr=MaxItr
 )
-
-# results1 = fista(f, g, x0, tol=tol, max_itr=MaxItr)
-
-results2 = inexact_vfista(
+results2 = rwapg(
     f, 
     g, 
     x0, 
-    lipschitz_constant=L, 
-    sc_constant=L, 
+    L, 
+    L/2, 
     lipschitz_line_search=true, 
-    sc_constant_line_search=true,
+    estimate_scnvx_const=true,
     tol=tol, 
     max_itr=MaxItr
 )
@@ -55,8 +52,8 @@ results2 = inexact_vfista(
 report_results(results1)
 report_results(results2)
 
-fxnVal1 = get_all_objective_vals(results1)
-fxnVal2 = get_all_objective_vals(results2)
+fxnVal1 = objectives(results1)
+fxnVal2 = objectives(results2)
 
 fxnMin = 0 # we already know the fmin. 
 
@@ -69,7 +66,7 @@ optimalityGap2 = replace((x) -> max(x, eps(Float64)), optimalityGap2)
 
 fig1 = plot(
     optimalityGap1, 
-    label="v-fista",
+    label="V-FISTA",
     title="Simple regression (N=$N)", 
     yaxis=:log10, 
     size=(600, 400), 
@@ -78,8 +75,9 @@ fig1 = plot(
     xlabel="Iteration Counter", 
     dpi=300
 )
-plot!(fig1, optimalityGap2, label="inexact VFISTA", linewidth=3)
+plot!(fig1, optimalityGap2, label="R-WAPG", linewidth=3)
 fig1 |> display
+
 savefig(fig1, "simple_regression_loss_$N.png")
 
 muEstimates = results2.misc

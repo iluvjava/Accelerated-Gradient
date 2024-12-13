@@ -12,9 +12,9 @@ using Test, LinearAlgebra, UnicodePlots
     """
         Test the ISTA routine a very basic problem, all settings on the results collected turned on.     
     """
-    function basicISTATest1()
+    function ISTATest1()
         
-        @info "Testing: ISTA with Lipschitz Line Search. "
+        @info "Testing: ISTA TEST 1. "
         n = 100
         L, μ = 1, 1e-2
         A = Diagonal(LinRange(μ, L, n))
@@ -31,14 +31,13 @@ using Test, LinearAlgebra, UnicodePlots
         end
         xs = objectives(results)
         ks = 1:length(xs)
-        println(lineplot(ks, xs, title="ISTA BASIC TEST1", yscale=:log2))
+        println(lineplot(ks, xs, title="ISTA TEST1", yscale=:log2))
         
-
         return true # runned without obvious issue. 
     end
 
-    function basicVFISTATest1()
-        @info "Testing: basicVFISTATest1"
+    function VFISTATest1()
+        @info "Testing: V-FISTA TEST 1"
         n = 100
         L, μ = 1, 1e-2
         A = Diagonal(LinRange(μ, L, n))
@@ -55,13 +54,13 @@ using Test, LinearAlgebra, UnicodePlots
         report_results(results)
         xs = objectives(results)
         ks = 1:length(xs)
-        println(lineplot(ks, xs, title="basicVFISTATest1",yscale=:log2))
+        println(lineplot(ks, xs, title="VFISTA Test1",yscale=:log2))
 
         return true # runned without obvious issue. 
     end
 
-    function basicFISTATest1()
-        @info "Testing: basicFISTATest1"
+    function FISTATest1()
+        @info "Testing: FISTA TEST 1"
         n = 100
         L, μ = 1, 1e-3
         A = Diagonal(LinRange(μ, L, n))
@@ -74,7 +73,7 @@ using Test, LinearAlgebra, UnicodePlots
         report_results(results)
         xs = objectives(results)
         ks = 1:length(xs)
-        println(lineplot(ks, xs, title="basicFISTATest1", yscale=:log2))
+        println(lineplot(ks, xs, title="FISTA Test1", yscale=:log2))
         if results.flag != 0
             println("termination flag: $(results.flag)")
             return false
@@ -83,8 +82,30 @@ using Test, LinearAlgebra, UnicodePlots
         return true # runned without obvious issue. 
     end
 
-    function basicInexactVFISTA()
-        @info "Testing: basicInexactVFISTA"
+    function MFISTATest1()
+        @info "Testing: M-FISTA TEST 1"
+        n = 100
+        L, μ = 1, 1e-2
+        A = Diagonal(LinRange(μ, L, n))
+        b = zeros(n)
+        f = Quadratic(A, b, 0)
+        g = MAbs(0.01)
+        x0 = 100*ones(n)
+        results = fista(f, g, x0, tol=1e-10, mono_restart=true)
+        report_results(results)
+        xs = objectives(results)
+        ks = 1:length(xs)
+        println(lineplot(ks, xs, title="M-FISTA TEST 1"))
+        if results.flag != 0
+            println("termination flag: $(results.flag)")
+            return false
+        end
+
+        return true 
+    end
+
+    function InexactVFISTATest1()
+        @info "Testing: InexactVFISTA TEST 1"
         n = 100
         L, μ = 1, 1e-3
         A = Diagonal(LinRange(μ, L, n))
@@ -101,12 +122,10 @@ using Test, LinearAlgebra, UnicodePlots
             estimate_scnvx_const=true, 
             tol=1e-5, 
         )
-        
         report_results(results)
         xs = objectives(results)
         ks = 1:length(xs)
-        println(lineplot(ks, xs, title="basicInexactVFISTA",  yscale=:log2))
-        
+        println(lineplot(ks, xs, title="Inexact V-FISTA Test1"))
         if results.flag != 0
             println("termination flag: $(results.flag)")
             return false
@@ -117,10 +136,11 @@ using Test, LinearAlgebra, UnicodePlots
 
     # sanity test 
     @test true
-    @test basicISTATest1()
-    @test basicVFISTATest1()
-    @test basicFISTATest1()
-    @test basicInexactVFISTA()
+    @test ISTATest1()
+    @test VFISTATest1()
+    @test FISTATest1()
+    @test MFISTATest1()
+    @test InexactVFISTATest1()
 end
 
 
@@ -134,9 +154,30 @@ end
     @test SanityCheck()
     @info "TEST SUIT: R-WAPG sanity check passed, real tests start. "
 
-    function rwapg_vfista()
-
+    function RWAPG()
+        n = 100
+        L, μ = 1, 1e-2
+        A = Diagonal(LinRange(μ, L, n))
+        b = zeros(n)
+        f = Quadratic(A, b, 0)
+        g = MAbs(0.01)
+        x0 = 100*ones(n)
+        results = rwapg(
+            f, g, x0, 1; tol=1e-2, 
+            lipschitz_line_search=true, 
+            estimate_scnvx_const=true
+        )
+        report_results(results)
+        if results.flag != 0
+            global results
+            return false
+        end
+        xs = objectives(results)
+        ks = 1:length(xs)
+        println(lineplot(ks, xs, title="R-WAPG"))
+        return true
     end
 
+    @test RWAPG()
 
 end
