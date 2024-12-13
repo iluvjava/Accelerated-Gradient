@@ -277,9 +277,9 @@ function prox_grad(
 
         if lazy
             # lazy then just update the Lipschitz constant, and not the future iterates. 
-            eta = (1/2)*dotted/d(y)
+            eta = 0.5*dotted/d(y)
         else
-            while eta >= tol &&  d(y) >= 1/(2*eta)*dotted
+            while dotted > 0 && eta >= tol &&  d(y)/dotted >= eta/2
                 eta /= 2
                 y = prox(g, eta, x - eta*grad(f, x))
                 dotted = dot(y - x, y - x)
@@ -372,7 +372,6 @@ function ista(
     eta::Number=1, 
     lipschitz_line_search::Bool=true
 )::ResultsCollector
-
     x = x0
     flag = 0
     if give_fxnval_nxt_itr(result_collector)
@@ -381,11 +380,9 @@ function ista(
         initialObjVal = nothing
     end
     initiate!(result_collector, x0, eta,initialObjVal)
-    
     # Iterates
     for k in 1:max_itr
         xPre = x
-
         # Proximal gradient step. 
         result = prox_grad(f, g, eta, xPre, lipschitz_line_search)
         if isnothing(result) 
@@ -393,8 +390,6 @@ function ista(
             break # <-- Line search fucking search failed. 
         end
         eta, x = result
-
-        
         # results collection
         fxn_val, pgradMapVec = nothing, eta^(-1)*(x - xPre)
         if give_fxnval_nxt_itr(result_collector)
@@ -407,12 +402,10 @@ function ista(
             pgradMapVec, 
             fxn_val
         )
-
         # Termination criteria
         if norm(x - xPre) < eps
             break   # <-- Tolerance reached, flag: 0
         end
-
         # Maximum iteration exceeded. 
         if k == max_itr
             flag = 1 # <-- Maxmum iteration reached. 
@@ -428,12 +421,13 @@ end
 """
 The VIFISTA routine is a constant acceleration, constant stepsize method for function with quadratic growth 
 parameter μ and Lipschitz constant on gradient L. 
+This one doesn't support line search. 
 
 ## Poisitional Arguments
-- `f`: 
-- `g`: 
-- `x0`: 
-- `lipschitz_constant`: 
+- `f::SmoothFxn`: 
+- `g::NonsmoothFxn`: 
+- `x0::AbstractArray`: 
+- `lipschitz_constant::Real`: 
 - `sc_constant`: 
 - `result_collector`: 
 - `eps`: 
@@ -444,32 +438,28 @@ function vfista(
     g::NonsmoothFxn, 
     x0::AbstractArray, 
     lipschitz_constant::Real,
-    sc_constant::Real;
+    scnvx_const::Real;
     # Named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
     tol::Number=1e-8,
     max_itr::Int=2000
 )::ResultsCollector
 
-    @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"*
+    @assert scnvx_const <= lipschitz_constant && scnvx_const >= 0 "Expect `sc_constant` <= `lipschitz_constant`"*
     " and `sc_constant` = 0, however this is not true and we have: "*
-    "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
-    L, μ = lipschitz_constant, sc_constant
+    "`sc_constant`=$scnvx_const, `lipschitz_constant`=$lipschitz_constant. "
+    L, μ = lipschitz_constant, scnvx_const
     κ = L/μ
     η = L^(-1)
-
     # initiate
     x, y = x0, x0
     fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
     initiate!(result_collector, x0, η, fxnInitialVal)
-
     # iterates
     flag = 0
     for k = 1:max_itr
-        
         _, x⁺= prox_grad(f, g, η, y)
         y⁺ = x⁺ + ((sqrt(κ) - 1)/(sqrt(κ) + 1))*(x⁺ - x)
-        
         # results collect
         fxn_val, pgradMapVec = nothing, η^(-1)*(x⁺ - x)
         if give_fxnval_nxt_itr(result_collector)
@@ -525,7 +515,7 @@ function fista(
     for k = 1: N
         
         # x is updated here 
-        result = prox_grad(f, g, 1/L, x, lipschitz_line_search)
+        result = prox_grad(f, g, 1/L, y, lipschitz_line_search)
         if isnothing(result) 
             flag = 2
             break # <-- Line fucking search failed. 
@@ -538,7 +528,6 @@ function fista(
         θ = (t - 1)/t⁺
         y⁺ = x⁺ + θ*(x⁺ - x)
         
-        # Montone restart here. 
         
         # strore results 
         fxn_val, pgradMapVec = nothing, L*(x⁺ - y)
@@ -652,30 +641,31 @@ end
 #     return result_collector
 # end
 
+
 function inexact_vfista(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
-    x0::AbstractArray;
-    lipschitz_constant::Real=1,
-    sc_constant::Real=1/2, 
+    x0::AbstractArray,
+    lip_const::Real=1,
+    scnvx_const::Real=1/2;
     # Named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
     tol::Number=1e-8,
     max_itr::Int=2000, 
-    sc_constant_line_search::Bool=false, 
+    estimate_scnvx_const::Bool=false, 
     lipschitz_line_search::Bool=false
 )::ResultsCollector
 
-    @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"+
+    @assert scnvx_const <= lip_const && scnvx_const >= 0 "Expect `sc_constant` <= `lipschitz_constant`"+
     " and `sc_constant` = 0, however this is not true and we have: "+
-    "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
-    L, μ = lipschitz_constant, sc_constant
+    "`sc_constant`=$scnvx_const, `lipschitz_constant`=$lip_const. "
+    L, μ = lip_const, scnvx_const
     κ = L/μ
 
     # initiate
     x, y = x0, x0 # current ieration of x, y
     ỹ = y # previous iteration of y 
-    t = (n) -> (n + 1)/2
+    # t = (n) -> (n + 1)/2
     fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
     estimatedSCConst = Vector{Number}(); push!(estimatedSCConst, μ)
     initiate!(result_collector, x0, 1/L, fxnInitialVal)
@@ -683,20 +673,15 @@ function inexact_vfista(
     # iterate
     flag = 0
     for k = 1:max_itr
-        # make future iterature x⁺
-        if lipschitz_line_search 
-            results = prox_grad(f, g, 1/L, y)
-            if isnothing(results)
-                flag = 2 
-                break  # <-- Lipschitz line search failed. 
-            end
-            η, x⁺ = results 
-            L = 1/η  # update Lipschitz constant and iterates
-        else
-            x⁺ = prox_grad(f, g, 1/L, y)
+        # Proximal gradient on y. 
+        results = prox_grad(f, g, 1/L, y, lipschitz_line_search)
+        if isnothing(results)
+            flag = 2 
+            break  # <-- Lipschitz line search failed. 
         end
-        @assert !any(isnan.(x⁺))
-        if sc_constant_line_search  # estimate strong convexity constant
+        η, x⁺ = results 
+        L = 1/η  # update Lipschitz constant and iterates
+        if estimate_scnvx_const
             Df(x1, x2) = f(x1) - f(x2) - dot(grad(f, x2), x1 - x2)
             μ⁺ = 2*Df(x, x⁺)/dot(x - x⁺, x - x⁺)
             μ = isnan(μ⁺) ? μ : (μ⁺ + μ)/2
@@ -706,9 +691,8 @@ function inexact_vfista(
         θ = μ > 0 ? ((sqrt(κ) - 1)/(sqrt(κ) + 1)) : 0
         y⁺ = x⁺ + θ*(x⁺ - x)
         push!(estimatedSCConst, μ)
-        
         # results collect
-        fxn_val, pgradMapVec = nothing, (1/L)*(x⁺ - x)
+        fxn_val, pgradMapVec = nothing, (1/L)*(x⁺ - y)
         if give_fxnval_nxt_itr(result_collector)
             fxn_val = f(x⁺) + g(x⁺)
         end
@@ -719,6 +703,7 @@ function inexact_vfista(
             pgradMapVec, 
             fxn_val
         )
+        # termination criteria
         if norm(x⁺ - y) < tol
             break # <-- Tolerance reached. 
         else
@@ -726,9 +711,9 @@ function inexact_vfista(
             ỹ = y
             y = y⁺
         end
-        
+        # max iter flagging. 
         if k == max_itr
-            flag = 1
+            flag = 1 # <- Max itr reached. 
             break
         end
     end
@@ -749,10 +734,16 @@ Perform R-WAPG algorithm for exactly one step and return the result vectors.
 It does the following thing: 
 1. Generate x⁺, the next step. 
 2. Extrapolate y⁺ using momentum rules specified by the R-WAPG algorithm. 
-3. Perform line searches if asked. 
+3. Perform Lipschitz line search if specified. 
+
+This function should only be used by `rwapg_vfista`. 
 
 ## Positional Arguments
 
+## Named argument
+
+## Returns
+If Lipschitz line search went through: `x⁺, y⁺, α⁺, L`; else: `Nothing`
 """
 function inner_rwapg(
         # Positional arguments. 
@@ -766,45 +757,97 @@ function inner_rwapg(
         L::Number; 
         # Optinal arguments. 
         lipschitz_line_search::Bool=false, 
-        sc_constant_search::Bool=false,
-    )::Tuple{Vector{Number}, Vector{Number}, Number}
+    )::Union{Tuple{Vector{Number}, Vector{Number}, Number, Number}, Nothing}
     
     #check and assert conditions. 
-    @assert alpha1 > 0 && alpha1 < 1 "Parameter alpha1 not in range. "*
-    "Condition: \"alpha1 = $alpha1 ∈ (0,1)\" FALSE. "
+    @assert alpha1 > 0 && alpha1 <= 1 "Parameter alpha1 not in range. "*
+    "Condition: \"alpha1 = $alpha1 ∈ (0,1]\" FALSE. "
     @assert 0 <= (alpha1^2)*rho < 1 "Parameter rho, alpha1 fails to adhere condition \"0 <= alpha1*rho < 1\""*
     "It has instead: alpha1=$alpha1, rho=$rho. "
     @assert 0 <= mu && mu <= L "mu, L, the strong convexity and smoothness parameters are faulty. "*
     "They violated the constaint 0 <= μ <= L. We had: μ = $mu, L = $L as the inputs. "
-
-    # execute exactly one step of the algorithm and returns the relevant parameters. 
     r = rho*alpha1^2
     ρ = rho
     α = alpha1
     κ = mu/L
     α⁺ = (1/2)*(κ - r + sqrt((κ - r)^2 + 4r))
     θ = ρ*α*(1 - α)/(ρ*α^2 + α⁺)
-    x⁺ = prox_grad(f, g, 1/L, y)
+    returned = prox_grad(f, g, 1/L, y, lipschitz_line_search)
+    if isnothing(returned)
+        return nothing
+    end
+    η, x⁺ = returned
+    L = 1/η
     y⁺ = x⁺ + θ*(x⁺ - x)
-
-    return x⁺, y⁺, α⁺
+    return x⁺, y⁺, α⁺, L
 end
 
 
 """
 Function implements FISTA, with restart and line search using R-WAPG. 
 
+
 """
 function rwapg_fista(
-
-    )
-
+    # Basic positional arguments
+    f::SmoothFxn, 
+    g::NonsmoothFxn, 
+    x0::AbstractArray, 
+    lip_const::Real,
+    # Named arguments set: Algorithm execuation
+    result_collector::ResultsCollector=ResultsCollector(), 
+    tol::Number=1e-8,
+    max_itr::Int=2000, 
+    lipschitz_line_search::Bool=false
+)
+    # Initial execution parameters. 
+    L = lip_const # <-- Changing in loop. 
+    μ = 0         # <-- Changing in loop. 
+    α = 1         # <-- Changing in loop. 
+    ϵ = tol 
+    m = max_itr 
+    x = x0        # <-- Changing in loop. 
+    y = x0        # <-- Changing in loop. 
+    flag = 0
+    for k = 1:m
+        # proximal gradient on y for x. 
+        returned = inner_rwapg(
+            f, g, x, y, α, 1, 0, L, 
+            lipschitz_line_search=lipschitz_line_search
+        )
+        if isnothing(returned) break; flag = 2; end
+        x⁺, y⁺, α⁺, L = returned
+        # s-convx const estimate. 
+        if estimate_scnvx_const
+            Df(x1, x2) = f(x1) - f(x2) - dot(grad(f, x2), x1 - x2)
+            μ⁺ = 2*Df(x, x⁺)/dot(x - x⁺, x - x⁺)
+            μ = isnan(μ⁺) ? μ : (μ⁺ + μ)/2
+            @assert !isnan(μ) # <-- Really shouldn't have Nan here. 
+        end
+        # results collect
+        F⁺, G = nothing, (1/L)*(x⁺ - y)
+        if give_fxnval_nxt_itr(result_collector)
+            F⁺ = f(x⁺) + g(x⁺)
+        end
+        register!(result_collector, x⁺, 1/L, G, F⁺)
+        # termination criteria, updates. 
+        if norm(x⁺ - y) < ϵ
+            break # <-- Tolerance reached. 
+        else
+            x = x⁺; y = y⁺; α = α⁺
+        end
+        if k == m
+            flag = 1 # <-- Maximum iteration reached. 
+        end
+    end
 end
 
 
 """
 Function implements a parameter free variant of the V-FISTA algorithm. 
-
+1. Support exact Lipschitz, s-cnvx parameters. 
+2. Supports estimated s-cnvx parameters. 
+3. Supports relaxed momentum parameter with a constant relaxations. 
 
 
 """
@@ -820,7 +863,7 @@ function rwapg_vfista(
     tol::Number=1e-8,
     max_itr::Int=2000, 
     lipschitz_line_search::Bool=false, 
-    sc_constant_search::Bool=false,
+    estimate_scnvx_const::Bool=false,
     # Named argument set: Advanced R-WAPG parameters 
     rho::Number=1
     )

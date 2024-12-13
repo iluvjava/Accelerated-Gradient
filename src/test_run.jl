@@ -8,7 +8,6 @@ using Test, LinearAlgebra, UnicodePlots
 
 
 @testset "Test Set 1: Tranditional Momentum Algorithm" begin 
-    
 
     """
         Test the ISTA routine a very basic problem, all settings on the results collected turned on.     
@@ -23,11 +22,13 @@ using Test, LinearAlgebra, UnicodePlots
         f = Quadratic(A, b, 0)
         g = MAbs(0.01)
         x0 = 100*ones(n)
-        results = ista(f, g, x0, eps=1e-2, eta=4/L, lipschitz_line_search=true)
+        results = ista(f, g, x0, eps=1e-2, eta=1/L, lipschitz_line_search=true)
+        report_results(results)
+        
         if results.flag != 0
+            global results
             return false
         end
-        report_results(results)
         xs = objectives(results)
         ks = 1:length(xs)
         println(lineplot(ks, xs, title="ISTA BASIC TEST1", yscale=:log2))
@@ -70,12 +71,10 @@ using Test, LinearAlgebra, UnicodePlots
         x0 = 100*ones(n)
         
         results = fista(f, g, x0, tol=1e-2)
-        
         report_results(results)
         xs = objectives(results)
         ks = 1:length(xs)
         println(lineplot(ks, xs, title="basicFISTATest1", yscale=:log2))
-        
         if results.flag != 0
             println("termination flag: $(results.flag)")
             return false
@@ -98,9 +97,9 @@ using Test, LinearAlgebra, UnicodePlots
             f, 
             g, 
             x0, 
-            tol=1e-2, 
             lipschitz_line_search=true, 
-            sc_constant_line_search=true
+            estimate_scnvx_const=true, 
+            tol=1e-5, 
         )
         
         report_results(results)
@@ -113,10 +112,8 @@ using Test, LinearAlgebra, UnicodePlots
             return false
         end
 
-        return true # runned without obvious issue. 
+        return true
     end
-
-
 
     # sanity test 
     @test true
@@ -137,6 +134,9 @@ end
     @test SanityCheck()
     @info "TEST SUIT: R-WAPG sanity check passed, real tests start. "
 
-    
+    function rwapg_vfista()
+
+    end
+
 
 end
