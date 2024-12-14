@@ -22,7 +22,6 @@ iterations and the previous iterations. It's collect sparsely according the poli
 results and using with the dictionary data structure. 
 """
 mutable struct ResultsCollector
-    
 
     gradient_mappings::Dict{Int, AbstractArray} # collect sparsely 
     gradient_mapping_norm::Vector{Real}         # always collect
@@ -133,7 +132,6 @@ this function.
 - `this::ProxGradResults`: This is the type that the function acts on. 
 - `soln::Vector`: This is the solution vector at the current iteration of the algorithm. 
 - `step_size::Real`: This is the stepsize you used for the current iterations on the proximal gradient operator. 
-- 
 """
 function register!(
     this::ResultsCollector, 
@@ -802,10 +800,10 @@ Function implements FISTA, with restart and line search using R-WAPG.
 
 ## Named arguments
 
-- `result_collector::ResultsCollector=ResultsCollector()`: 
-- `tol::Number=1e-8`: 
-- `max_itr::Int=2000`: 
-- `lipschitz_line_search::Bool=false`: 
+- `result_collector::ResultsCollector=ResultsCollector()`: An instance of results collector. 
+- `tol::Number=1e-8`: Tolerance for termination criteria, which is the gradient mapping. 
+- `max_itr::Int=2000`: Maximum number of iterations allowed. 
+- `lipschitz_line_search::Bool=false`: Whether to perform line search for the Lipschitz constant. 
 
 """
 function rwapg(
@@ -822,7 +820,6 @@ function rwapg(
     max_itr::Int=2000, 
     lipschitz_line_search::Bool=false, 
     estimate_scnvx_const::Bool=false
-    
 )
     # Initial execution parameters. 
     L = lip_const           # <-- Changing in loop. 
@@ -831,8 +828,8 @@ function rwapg(
     ρ = rho
     ϵ = tol       
     m = max_itr 
-    x = x0        # <-- Changing in loop. 
-    y = x0        # <-- Changing in loop. 
+    x = x0                  # <-- Changing in loop. 
+    y = x0                  # <-- Changing in loop. 
     _flag = 0
     # results collector initialization. 
     _initial_fxn = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing

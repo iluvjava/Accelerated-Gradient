@@ -11,7 +11,8 @@ Pkg.add(
         "Zygote", 
         "Plotly", 
         "PGFPlotsX", 
-        "MLDatasets"
+        "MLDatasets", 
+        "Statistics"
     ])
 
 
