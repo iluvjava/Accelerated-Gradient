@@ -264,70 +264,33 @@ function prox_grad(
         d(y) = f(y) - f(x) - dot(grad(f, x), y - x) # <-- Bregman divergence of the smooth part. 
         y = prox(g, eta, x - eta*grad(f, x))
         dotted = dot(y - x, y - x)
-
+        _breg_div = d(y)
         if lazy
             # lazy then just update the Lipschitz constant, and not the future iterates. 
-            eta = 0.5*dotted/d(y)
+            eta = 0.5*dotted/_breg_div
         else
-            while dotted > 0 && eta >= tol &&  d(y)/dotted >= eta/2
-                eta /= 2
+            while eta >= tol && 2*eta*_breg_div > dotted 
                 y = prox(g, eta, x - eta*grad(f, x))
                 dotted = dot(y - x, y - x)
+                _breg_div = d(y)
+                if min(dotted, _breg_div) <= eps(Float64)
+                    break
+                end
+                eta /= 2
             end
         end
-        
         if eta >= tol
             return eta, y
         end
-        
+        @warn "Line search failed, final η: $eta; ||x - y||^2=$dotted. D_f(x, y)=$(d(y)), div ratio: $(d(y)/dotted). "*
+        "\nVerifiation criteria: `2*eta*_breg_div <= dotted evaluates` to "*
+        "$(2*eta*_breg_div) <= $(dotted). "
         return nothing
     end
 
     return eta, prox(g, eta, x - eta*grad(f, x))
     
 end
-
-
-# function execute_sc_const_line_search(
-#     f::SmoothFxn, 
-#     g::NonsmoothFxn, 
-#     lipschitz_constant::Real, 
-#     sc_constant::Real, 
-#     x::AbstractVector, 
-#     y::AbstractVector;
-#     # named arguments 
-#     tol=1e-10, 
-#     lazy::Bool=false
-# )::Union{Tuple{Real, AbstractVector}, Nothing}
-#     L = lipschitz_constant
-#     mu = sc_constant
-#     d(z) = f(z) - f(y) - dot(grad(f, y), z - y) # <-- Bregman divergence of the smooth part, fixed on x. 
-#     # d(z) = 2*dot(grad(f, z) - grad(f, y), z - y)
-#     Ty = prox_grad(f, g, 1/L, y)
-#     X(μ, x) = (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ)/μ)*(y - Ty)  # <-- Probing the next "ghost" iterates based on the PPM APG interpretation 
-#     newX = X(mu, x)
-#     bregD = d(newX)
-#     dotted = dot(newX - x, newX - x)
-#     if lazy
-#         # only update mu
-#         mu = min(mu, 2*bregD/dotted)
-#     else
-#         # do a iterative line search using BD 
-#         while bregD < (mu/2)*dotted
-#             mu /= 2
-#             # mu = (2bregD/dotted)^2
-#             # update all because mu changed. 
-#             newX = X(mu, x)
-#             bregD = d(newX)
-#             dotted = dot(newX - x, newX - x)
-#         end
-#     end
-#     if mu >= tol 
-#         return mu, newX
-#     end
-#     # tolerance violated. 
-#     return mu, newX
-# end
 
 
 # ==============================================================================
@@ -357,7 +320,7 @@ function ista(
     x0::AbstractArray;
     # named arguments 
     result_collector::ResultsCollector=ResultsCollector(),
-    eps::Number=1e-18,
+    tol::Number=1e-18,
     max_itr::Int=2000, 
     eta::Number=1, 
     lipschitz_line_search::Bool=true
@@ -381,7 +344,7 @@ function ista(
         end
         eta, x = result
         # results collection
-        fxn_val, pgradMapVec = nothing, eta^(-1)*(x - xPre)
+        fxn_val, pgradMapVec = nothing, 1/eta*(x - xPre)
         if give_fxnval_nxt_itr(result_collector)
             fxn_val = f(x) + g(x)
         end
@@ -393,7 +356,7 @@ function ista(
             fxn_val
         )
         # Termination criteria
-        if norm(x - xPre) < eps
+        if norm(x - xPre) < tol
             break   # <-- Tolerance reached, flag: 0
         end
         # Maximum iteration exceeded. 
@@ -405,7 +368,6 @@ function ista(
     result_collector.flag = flag
     return result_collector
 end
-
 
 
 """
@@ -558,93 +520,13 @@ end
 
 
 
-# function ppm_apg(
-#     f::SmoothFxn, 
-#     g::NonsmoothFxn, 
-#     x0::AbstractArray;
-#     # named arguments 
-#     result_collector::ResultsCollector=ResultsCollector(), 
-#     eps::Real=1e-8,
-#     max_itr::Int=2000, 
-#     lipschitz_constant::Real=1, 
-#     sc_constant::Real=0.5,
-#     lipschitz_line_search::Bool=false, 
-#     sc_constant_line_search::Bool=false
-# )::ResultsCollector
-#     throw(ErrorException("ALGORITHM DEPRECATED. "))
-#     @assert sc_constant <= lipschitz_constant && sc_constant >= 0 "Expect `sc_constant` <= `lipschitz_constant`"*
-#     " and `sc_constant` = 0, however this is not true and we have: "*
-#     "`sc_constant`=$sc_constant, `lipschitz_constant`=$lipschitz_constant. "
-#     L, μ = lipschitz_constant, sc_constant
-#     # initiate
-#     x, y = x0, x0
-#     flag = 0
-#     fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
-#     initiate!(result_collector, x0, 1/L, fxnInitialVal)
-#     scConstEstimates = Vector{Number}()
-#     # iterates 
-#     for k in 1:max_itr
-#         if lipschitz_line_search
-#             results = execute_lipz_line_search(f, g, 1/L, y)
-#             if isnothing(results)
-#                 flag = 2   
-#                 break # <--  Lipschitz line search breaks near point: y
-#             end
-#             s, Ty = results 
-#             L = 1/s
-#         else
-#             Ty = prox_grad(f, g, 1/L, y)
-#         end
-#         if sc_constant_line_search
-#             results = execute_sc_const_line_search(f, g, L, μ, x, y)
-#             if isnothing(results)
-#                 flag = 2 # <-- Strong sc constant search failed 
-#                 break 
-#             end
-#             μ, x⁺ = results
-#             push!(scConstEstimates,  μ)
-#         else
-#             ρ = sqrt(L/μ)
-#             x⁺ = (1/ρ)*(y - x) + x - (1/(ρ*μ))*L*(y - Ty)
-#             #  (1/sqrt(L/μ))*(y - x) + x - (1/sqrt(L/μ)/μ)*(y - Ty)
-#         end
-#         ρ = sqrt(L/μ)
-#         y⁺ = (ρ*Ty + x⁺)/(1 + ρ)
-#         # results collect
-#         fxn_val, pgradMapVec = nothing, L*(y - Ty)
-#         if give_fxnval_nxt_itr(result_collector)
-#             fxn_val = f(Ty) + g(Ty)
-#         end
-#         register!(
-#             result_collector, 
-#             x, 
-#             1/L, 
-#             pgradMapVec, 
-#             fxn_val
-#         )
-#         if norm(y - Ty) < eps
-#             println("tolerance reached. ")
-#             break # <-- Tolerance reached. 
-#         else
-#             x, y = x⁺, y⁺
-#         end
-#         if k == max_itr
-#             flag = 1
-#             # max iteration reached
-#         end
-#     end
-#     result_collector.misc = scConstEstimates
-#     result_collector.flag = flag
-#     return result_collector
-# end
-
 
 function inexact_vfista(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
     x0::AbstractArray,
     lip_const::Real=1,
-    scnvx_const::Real=1/2;
+    scnvx_const::Real=0;
     # Named arguments 
     result_collector::ResultsCollector=ResultsCollector(), 
     tol::Number=1e-8,
@@ -658,40 +540,41 @@ function inexact_vfista(
     "`sc_constant`=$scnvx_const, `lipschitz_constant`=$lip_const. "
     L, μ = lip_const, scnvx_const
     κ = L/μ
-
     # initiate
     x, y = x0, x0 # current ieration of x, y
     ỹ = y # previous iteration of y 
     # t = (n) -> (n + 1)/2
-    fxnInitialVal = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
-    estimatedSCConst = Vector{Number}(); push!(estimatedSCConst, μ)
-    initiate!(result_collector, x0, 1/L, fxnInitialVal)
-
+    _initial_fxn = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
+    _all_scnvx_consts = Vector{Number}(); push!(_all_scnvx_consts, μ)
+    initiate!(result_collector, x0, 1/L, _initial_fxn)
+    _running_fval = estimate_scnvx_const ? _initial_fxn : nothing  # <--- changing in loop. 
     # iterate
     flag = 0
     for k = 1:max_itr
         # Proximal gradient on y. 
-        results = prox_grad(f, g, 1/L, y, lipschitz_line_search)
-        if isnothing(results)
+        _returned = prox_grad(f, g, 1/L, y, lipschitz_line_search)
+        if isnothing(_returned)
             flag = 2 
             break  # <-- Lipschitz line search failed. 
         end
-        η, x⁺ = results 
+        η, x⁺ = _returned 
         L = 1/η  # update Lipschitz constant and iterates
+        
         if estimate_scnvx_const
-            Df(x1, x2) = f(x1) - f(x2) - dot(grad(f, x2), x1 - x2)
-            μ⁺ = 2*Df(x, x⁺)/dot(x - x⁺, x - x⁺)
+            _new_running_fval = f(x⁺)
+            Df = _running_fval - _new_running_fval - dot(grad(f, x⁺), x - x⁺)
+            μ⁺ = min(max(2*Df/dot(x - x⁺, x - x⁺), 0), L/2)
             μ = isnan(μ⁺) ? μ : (μ⁺ + μ)/2
             @assert !isnan(μ) # <-- Really shouldn't have Nan here. 
+            _running_fval = _new_running_fval
         end
         κ = L/μ
         θ = μ > 0 ? ((sqrt(κ) - 1)/(sqrt(κ) + 1)) : 0
         y⁺ = x⁺ + θ*(x⁺ - x)
-        push!(estimatedSCConst, μ)
-        # results collect
+        push!(_all_scnvx_consts, μ)
         fxn_val, pgradMapVec = nothing, (1/L)*(x⁺ - y)
         if give_fxnval_nxt_itr(result_collector)
-            fxn_val = f(x⁺) + g(x⁺)
+            fxn_val = (isnothing(_running_fval) ? f(x⁺) : _running_fval) + g(x⁺)
         end
         register!(
             result_collector, 
@@ -716,7 +599,7 @@ function inexact_vfista(
     end
     
     result_collector.flag = flag
-    result_collector.misc = estimatedSCConst
+    result_collector.misc = _all_scnvx_consts
     return result_collector
 end
 
@@ -833,6 +716,7 @@ function rwapg(
     _flag = 0
     # results collector initialization. 
     _initial_fxn = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
+    _running_fval = estimate_scnvx_const ? _initial_fxn : nothing  # <--- changing in loop. 
     _sconvx_estimated = Vector{Number}(); push!(_sconvx_estimated, μ)
     initiate!(result_collector, x0, 1/L, _initial_fxn)
     for k = 1:m
@@ -845,16 +729,17 @@ function rwapg(
         x⁺, y⁺, α⁺, L = returned
         # s-convx const estimate. 
         if estimate_scnvx_const
-            Df(x1, x2) = f(x1) - f(x2) - dot(grad(f, x2), x1 - x2)
-            μ⁺ = 2*Df(x, x⁺)/dot(x - x⁺, x - x⁺)
-            μ = isnan(μ⁺) ? μ : (μ⁺ + μ)/2
-            @assert !isnan(μ) # <-- Really shouldn't have Nan here. 
+            _new_running_fval = f(x⁺)
+            Df = _running_fval - _new_running_fval - dot(grad(f, x⁺), x - x⁺)
+            μ⁺ = min(max(2*Df/dot(x - x⁺, x - x⁺), 0), L/2)
+            μ = isnan(μ⁺) ? μ : (1/2)*μ⁺ + (1/2)*μ
             push!(_sconvx_estimated, μ)
+            _running_fval = _new_running_fval
         end
         # results collect
         F⁺, G = nothing, (1/L)*(x⁺ - y)
         if give_fxnval_nxt_itr(result_collector)
-            F⁺ = f(x⁺) + g(x⁺)
+            F⁺ = (isnothing(_running_fval) ? f(x⁺) : _running_fval) + g(x⁺)
         end
         register!(result_collector, x⁺, 1/L, G, F⁺)
         # termination criteria, updates. 

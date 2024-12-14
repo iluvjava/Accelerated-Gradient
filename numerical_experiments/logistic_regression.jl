@@ -39,10 +39,10 @@ results2 = inexact_vfista(
     f, 
     g, 
     x0, 
-    lipschitz_constant=1, 
-    sc_constant=1/2, 
+    1, 
+    1/2;
     lipschitz_line_search=true, 
-    sc_constant_line_search=true,
+    estimate_scnvx_const=true,
     tol=tol, 
     max_itr=MaxItr
 )

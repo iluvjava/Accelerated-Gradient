@@ -10,24 +10,26 @@ using Test, LinearAlgebra, Plots, SparseArrays, Random
 
 
 function make_lasso_problem(
-    N::Integer, seed::Integer=224
+    M::Integer,
+    N::Integer, 
+    seed::Integer=1
 )::Tuple{SmoothFxn, NonsmoothFxn, Real, Real}
     Random.seed!(seed)
-    A = randn(N, N)
-    x⁺ = cos.((π/2)*(0:1:N - 1)) .+ 1e-4*rand(N)
+    A = randn(M, N)
+    x⁺ = cos.((π/2)*(0:1:N - 1))
     b = A*x⁺
     f = SquareNormResidual(A, b)
-    g = MAbs(0.1)
+    g = MAbs(0.3)
     μ = 1/norm(inv(A'*A))
     L = norm(A'*A)
     return f, g, μ, L
 end
 
-N = 64
-f, g, μ, L = make_lasso_problem(N)
+M, N = 64, 512
+f, g, μ, L = make_lasso_problem(M, N)
 x0 = randn(N)
-MaxItr = 5000
-tol = 1e-12
+MaxItr = 100000
+tol = 1e-10
 
 results1 = vfista(
     f, 
@@ -38,19 +40,19 @@ results1 = vfista(
     tol=tol, 
     max_itr=MaxItr
 )
-
-results2 = inexact_vfista(
+@info "VFISTA DONE"
+results2 = rwapg(
     f, 
     g, 
     x0, 
-    lipschitz_constant=L, 
-    sc_constant=L, 
+    L, 
+    L/2, 
     lipschitz_line_search=true, 
-    sc_constant_line_search=true,
+    estimate_scnvx_const=true,
     tol=tol, 
     max_itr=MaxItr
 )
-
+@info "R-WAPG DONE"
 results3 = fista(
     f, 
     g, 
@@ -60,23 +62,22 @@ results3 = fista(
     lipschitz_constant=L, 
     lipschitz_line_search=false
 )
+@info "FISTA DONE"
 
 report_results(results1)
 report_results(results2)
 report_results(results3)
 
-fxnVal1 = get_all_objective_vals(results1)
-fxnVal2 = get_all_objective_vals(results2)
-fxnVal3 = get_all_objective_vals(results3)
+fxnVal1 = objectives(results1)
+fxnVal2 = objectives(results2)
+fxnVal3 = objectives(results3)
 fxnMin = min(minimum(fxnVal1), minimum(fxnVal2), minimum(fxnVal3))
 # fxnMin = 0
 
 optimalityGap1 = @. fxnVal1 - fxnMin
 optimalityGap1 = replace((x) -> max(x, eps(Float64)), optimalityGap1)
-
 optimalityGap2 = @. fxnVal2 - fxnMin
 optimalityGap2 = replace((x) -> max(x, eps(Float64)), optimalityGap2)
-
 optimalityGap3 = @. fxnVal3 - fxnMin
 optimalityGap3 = replace((x) -> max(x, eps(Float64)), optimalityGap3)
 
@@ -88,8 +89,8 @@ validIndx3 = findall((x) -> (x > 0), optimalityGap3)
 fig1 = plot(
     validIndx1,
     optimalityGap1[validIndx1], 
-    yaxis=:log10,
-    label="v-fista",
+    yaxis=:log2,
+    label="V-FISTA",
     title="LASSO N=$N", 
     size=(600, 400), 
     linewidth=3, 
@@ -101,14 +102,14 @@ plot!(
     fig1,
     validIndx3,
     optimalityGap3[validIndx3], 
-    label="fista",
+    label="FISTA",
     linewidth=3, 
 )
 plot!(
     fig1, 
     validIndx2,
     optimalityGap2[validIndx2], 
-    label="inexact_vfista", 
+    label="FREE RWAPG", 
     linewidth=3
 )
 

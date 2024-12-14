@@ -25,7 +25,7 @@ f, g = make_quadratic_problem(N, μ, L)
 # x0 = LinRange(0, L, N) |> collect
 x0 = ones(N)
 
-MaxItr = 5000
+MaxItr = 10000
 tol = 1e-8
 
 results1 = vfista(

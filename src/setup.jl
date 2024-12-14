@@ -12,7 +12,8 @@ Pkg.add(
         "Plotly", 
         "PGFPlotsX", 
         "MLDatasets", 
-        "Statistics"
+        "Statistics", 
+        "ProgressMeter"
     ])
 
 
