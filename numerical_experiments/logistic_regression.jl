@@ -15,16 +15,16 @@ function make_logistic_loss_problem(
     # diagonals = vcat(LinRange(μ, L, N))
     A = abs.(randn(M, N))
     b = @. (cos(π*(0:1:M - 1)) + 1)/2
-    f = LogitLoss(A, b, 0.01)
+    f = LogitLoss(A, b, 1e-4)
     g = MAbs(0.01)
     return f, g
 end
 
-M, N,= 64, 32
+M, N,= 64, 128
 
 f, g = make_logistic_loss_problem(M, N)
 x0 = ones(N)
-MaxItr = 5000
+MaxItr = 50000
 tol = 1e-8
 results1 = fista(
     f, 
@@ -32,10 +32,12 @@ results1 = fista(
     x0, 
     tol=tol, 
     max_itr=MaxItr,
-    lipschitz_constant=1
+    lipschitz_constant=1, 
+    lipschitz_line_search=true, 
+    mono_restart=true
 )
 
-results2 = inexact_vfista(
+results2 = rwapg(
     f, 
     g, 
     x0, 
@@ -68,7 +70,7 @@ fig1 = plot(
     validIndx1,
     optimalityGap1[validIndx1], 
     yaxis=:log10,
-    label="fista",
+    label="M-FISTA",
     size=(1200, 800),
     title="Logit Regression Experiment", 
 )
@@ -77,7 +79,7 @@ plot!(
     fig1, 
     validIndx2,
     optimalityGap2[validIndx2], 
-    label="inexact_vfista"
+    label="R-WAPG"
 )
 fig1 |> display
 savefig(fig1, "logistic_regression_loss.png")

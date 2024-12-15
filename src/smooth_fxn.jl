@@ -41,6 +41,8 @@ end
 
 
 
+
+
 #### ===================================================================================================================
 
 """
@@ -93,8 +95,14 @@ mutable struct LogitLoss <: SmoothFxn
         this = new()
         this.A = A 
         this.b = b
-        this.fxn = (x) ->  sum(log.(1 .+ exp.(A*x))) - dot(b, A*x) + lambda*dot(x, x)/2
-
+        # this.fxn = (x) ->  sum(log.(1 .+ exp.(A*x))) - dot(b, A*x) + lambda*dot(x, x)/2
+        function _fxn(x)
+            Ax = A*x
+            _part1 = @. log(1 + exp(Ax)) - b*Ax
+            _part2 = lambda*dot(x, x)/2
+            return sum(_part1) + _part2
+        end
+        this.fxn = _fxn
         return this
     end
 end

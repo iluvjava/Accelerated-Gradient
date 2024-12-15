@@ -13,7 +13,7 @@ iterations and the previous iterations. It's collect sparsely according the poli
 - `step_sizes::Vector{Real}`: all the stepsizes used by the algorithm. 
 - `flags::Int`: exit flag
     * `-1` flag is not yet set by the algorithm 
-    * `0` Exits because tolerance reached. 
+    * `0` Exits because tolerance reached, either in function value, or gradient mapping norm. 
     * `1` Maximum iteration reached without reaching the tolerance. 
     * `2` Lipschitz smoothness line search failed. 
 - `collection_interval::Int`
@@ -47,7 +47,7 @@ mutable struct ResultsCollector
     function ResultsCollector(
         collection_interval::Int=1,
         collect_fxn_val::Bool=true, 
-        collect_grad_map::Bool=true, 
+        collect_grad_map::Bool=false, 
     )
         this = new()
         this.gradient_mappings = Dict{Int, AbstractArray}()
@@ -356,7 +356,7 @@ function ista(
             fxn_val
         )
         # Termination criteria
-        if norm(x - xPre) < tol
+        if L*norm(x - xPre) < tol
             break   # <-- Tolerance reached, flag: 0
         end
         # Maximum iteration exceeded. 
@@ -425,7 +425,7 @@ function vfista(
             pgradMapVec, 
             fxn_val
         )
-        if norm(x⁺ - y) < tol
+        if L*norm(x⁺ - y) < tol
             break # <-- Tolerance reached. 
         else
             x = x⁺
@@ -484,15 +484,14 @@ function fista(
                 _running_fxn_val = min(_new_fxn_val, _running_fxn_val)
             end
         end
-
-        # forced restart triggered
+        # forced restart triggered, reset iterates. 
         if mono_restart && _running_fxn_val < _new_fxn_val
-            y⁺ = x + (t/t⁺)*(x - x⁺)
-            x⁺ = x # reset 
+            y⁺ = x 
+            x⁺ = x
+            _new_fxn_val = _running_fxn_val
         else
             y⁺ = x⁺ + θ*(x⁺ - x)
         end
-
         register!(
             result_collector, 
             x⁺, 
@@ -500,7 +499,7 @@ function fista(
             pgradMapVec, 
             _new_fxn_val
         )
-        if norm(x⁺ - y) < ϵ
+        if L*norm(x⁺ - y) < ϵ
             break
         end
         
@@ -517,8 +516,6 @@ function fista(
     return result_collector
 
 end
-
-
 
 
 function inexact_vfista(
@@ -559,20 +556,20 @@ function inexact_vfista(
         end
         η, x⁺ = _returned 
         L = 1/η  # update Lipschitz constant and iterates
-        
+        _new_running_fval = nothing
         if estimate_scnvx_const
             _new_running_fval = f(x⁺)
             Df = _running_fval - _new_running_fval - dot(grad(f, x⁺), x - x⁺)
             μ⁺ = min(max(2*Df/dot(x - x⁺, x - x⁺), 0), L/2)
             μ = isnan(μ⁺) ? μ : (μ⁺ + μ)/2
             @assert !isnan(μ) # <-- Really shouldn't have Nan here. 
-            _running_fval = _new_running_fval
         end
+        _running_fval = _new_running_fval
         κ = L/μ
         θ = μ > 0 ? ((sqrt(κ) - 1)/(sqrt(κ) + 1)) : 0
         y⁺ = x⁺ + θ*(x⁺ - x)
         push!(_all_scnvx_consts, μ)
-        fxn_val, pgradMapVec = nothing, (1/L)*(x⁺ - y)
+        fxn_val, pgradMapVec = nothing, L*(x⁺ - y)
         if give_fxnval_nxt_itr(result_collector)
             fxn_val = (isnothing(_running_fval) ? f(x⁺) : _running_fval) + g(x⁺)
         end
@@ -584,7 +581,7 @@ function inexact_vfista(
             fxn_val
         )
         # termination criteria
-        if norm(x⁺ - y) < tol
+        if L*norm(x⁺ - y) < tol
             break # <-- Tolerance reached. 
         else
             x = x⁺
@@ -702,7 +699,8 @@ function rwapg(
     tol::Number=1e-8,
     max_itr::Int=2000, 
     lipschitz_line_search::Bool=false, 
-    estimate_scnvx_const::Bool=false
+    estimate_scnvx_const::Bool=false, 
+    mono_restart::Bool=true
 )
     # Initial execution parameters. 
     L = lip_const           # <-- Changing in loop. 
@@ -728,22 +726,25 @@ function rwapg(
         if isnothing(returned) break; _flag = 2; end
         x⁺, y⁺, α⁺, L = returned
         # s-convx const estimate. 
+        _new_running_fval = nothing 
         if estimate_scnvx_const
             _new_running_fval = f(x⁺)
             Df = _running_fval - _new_running_fval - dot(grad(f, x⁺), x - x⁺)
-            μ⁺ = min(max(2*Df/dot(x - x⁺, x - x⁺), 0), L/2)
+            μ⁺ = min(max(2*Df/dot(x - x⁺, x - x⁺), 0), L)
             μ = isnan(μ⁺) ? μ : (1/2)*μ⁺ + (1/2)*μ
             push!(_sconvx_estimated, μ)
-            _running_fval = _new_running_fval
         end
+        _running_fval = _new_running_fval
+
         # results collect
-        F⁺, G = nothing, (1/L)*(x⁺ - y)
+        F⁺, G = nothing, L*(x⁺ - y)
         if give_fxnval_nxt_itr(result_collector)
             F⁺ = (isnothing(_running_fval) ? f(x⁺) : _running_fval) + g(x⁺)
         end
         register!(result_collector, x⁺, 1/L, G, F⁺)
+        
         # termination criteria, updates. 
-        if norm(x⁺ - y) < ϵ
+        if L*norm(x⁺ - y) < ϵ
             break # <-- Tolerance reached. 
         else
             x = x⁺; y = y⁺; α = α⁺

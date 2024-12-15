@@ -1,5 +1,6 @@
 ## =====================================================================================================================
 ## SMOOTH AND NON-SMOOTH FUNCTION
+## WRITE THE INTERFACE AND GIVE NOT YET IMPLEMENTED ERRORS. 
 ## =====================================================================================================================
 
 """
@@ -80,6 +81,20 @@ function prox(this::SmoothFxn, arg::AbstractArray{T}):: AbstractArray where {T <
             "Abstract type function get overloaded, method not yet implemented for $(typeof(this)). "*
             "If this is unexpected, please imeplement this function for your type. "
         )
+    )
+end
+
+function has_auto_diff()::Bool
+    ErrorException(
+        "Abstract type function get overloaded, method not yet implemented for $(typeof(this)). "*
+        "If this is unexpected, please imeplement this function for your type. "
+    )
+end
+
+function auto_diff()::Bool
+    ErrorException(
+        "Abstract type function get overloaded, method not yet implemented for $(typeof(this)). "*
+        "If this is unexpected, please imeplement this function for your type. "
     )
 end
 

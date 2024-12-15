@@ -45,8 +45,8 @@ results2 = rwapg(
     f, 
     g, 
     x0, 
-    L, 
-    L/2, 
+    1, 
+    1, 
     lipschitz_line_search=true, 
     estimate_scnvx_const=true,
     tol=tol, 
@@ -60,9 +60,10 @@ results3 = fista(
     tol=tol, 
     max_itr=MaxItr, 
     lipschitz_constant=L, 
-    lipschitz_line_search=false
+    lipschitz_line_search=false, 
+    mono_restart=true, 
 )
-@info "FISTA DONE"
+@info "M-FISTA DONE"
 
 report_results(results1)
 report_results(results2)
@@ -102,7 +103,7 @@ plot!(
     fig1,
     validIndx3,
     optimalityGap3[validIndx3], 
-    label="FISTA",
+    label="M-FISTA",
     linewidth=3, 
 )
 plot!(

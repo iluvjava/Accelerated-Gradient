@@ -12,11 +12,10 @@ The runner is a parameterless callable function that returns `::ResultsCollector
 """
 function perform_collect(
     runnable::Base.Callable
-)::Vector{Number}
+)::Tuple{Vector{Number}, Vector{Number}}
     results::ResultsCollector = runnable()
     return results |> objectives, results.gradient_mapping_norm
 end
-
 
 
 """
@@ -30,9 +29,9 @@ of the function at each iteration of the algorithm and return the statistics inf
 - `repeat_for=50`: 
 """
 function repeat_experiments_for(  
-    initial_guess_generator::Base.Callable, 
-    runnables::Vector{Base.Callable},
-    true_minimum::Union{Real, Nothing}=nothing;
+    initial_guess_generator::Function, 
+    runnables::Vector{Function};
+    true_minimum::Union{Real, Nothing}=nothing,
     repeat=50, 
     normalize::Bool=false
 )::Dict
@@ -42,8 +41,8 @@ function repeat_experiments_for(
     _objs_list = Vector{Vector{Vector}}(undef, C)
     _grad_mapping_lists = Vector{Vector{Vector}}(undef, C)
     _estimated_min = Inf
-    for c in 1: C # for each algorithm. 
-        _algo = runnables(c)
+    @showprogress for c in 1: C # for each algorithm. 
+        _algo = runnables[c]
         _l1 = _objs_list[c] = Vector{Vector}()
         _l2 = _grad_mapping_lists[c] = Vector{Vector}()
         for j in 1:repeat # repeat with different initial guesses. 
@@ -53,7 +52,7 @@ function repeat_experiments_for(
                 ) # <-- Pass functional handler. 
             )
             push!(_l1, _objs)
-            _estimated_min = min(mininum(objs), _estimated_min)
+            _estimated_min = min(minimum(_objs), _estimated_min)
             push!(_l2, _gpm)
         end
     end
@@ -62,7 +61,7 @@ function repeat_experiments_for(
     end
     true_minimum = min(true_minimum, _estimated_min) - eps(Float64)
     if normalize
-        _objs_list = [(objs .- true_minimum)/(objs[1] .- true_minimum) in _objs_list]
+        _objs_list = [(_objs .- true_minimum)/(_objs[1] .- true_minimum) in _objs_list]
     end
     for c in 1: C
         _to_return[c] = (_objs_list[c], _grad_mapping_lists[c])
@@ -72,4 +71,10 @@ function repeat_experiments_for(
 end
 
 
-### EXAMPLE USAGE OF THE ABOVE GENERIC INTERFACE. 
+"""
+Given an array of array of different length: `Array{Array}`.
+Get the 5 points statistics for all the kth element of all the arrays in the array. 
+"""
+function zagged_arr_quantiles()
+
+end
