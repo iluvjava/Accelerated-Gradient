@@ -65,7 +65,8 @@ end
         # Get the fxn vals and gradient mapping for each algorithm. 
         global ExperimentResultsObjs = [ExperimentResults[k][1] for k in 1:length(ExperimentResults)]
         global ExperimentResultsGm = [ExperimentResults[k][2] for k in 1:length(ExperimentResults)]
-        
+        # Plot out the statistical results of the 2 algorithms. 
+
         return true
     end
     

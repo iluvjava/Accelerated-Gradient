@@ -3,7 +3,8 @@ include("../src/non_smooth_fxns.jl")
 include("../src/smooth_fxn.jl")
 include("../src/proximal_gradient.jl")
 using Test, LinearAlgebra, Plots, SparseArrays, ProgressMeter, Statistics
-gr() # <-- Initialize GR backend. 
+gr() 
+
 
 
 """
@@ -18,22 +19,23 @@ function perform_collect(
 end
 
 
+
 """
 Repeat `perform_one_experiment_on` for different initial gusses and collect statistics on objective values 
 of the function at each iteration of the algorithm and return the statistics information. 
 
 ## Positional Argument 
-- `initial_guess_generator::Base.Callable`: 
+- `initial_guess_generator::Base.Callable`:
 - `runnables::Vector{Base.Callable}`:
-- `true_minimum::Union{Real, Nothing}=nothing`: 
-- `repeat_for=50`: 
+- `true_minimum::Union{Real, Nothing}=nothing`:
+- `repeat_for=50`:
 """
 function repeat_experiments_for(  
     initial_guess_generator::Function, 
     runnables::Vector{Function};
     true_minimum::Union{Real, Nothing}=nothing,
     repeat=50, 
-    normalize::Bool=false
+    normalize::Bool=true
 )::Dict
     C = length(runnables)
     _to_return = Dict{Int, Tuple}()  # <-- One parameter to handle the return of values. 
@@ -41,11 +43,11 @@ function repeat_experiments_for(
     _objs_list = Vector{Vector{Vector}}(undef, C)
     _grad_mapping_lists = Vector{Vector{Vector}}(undef, C)
     _estimated_min = Inf
-    @showprogress for c in 1: C # for each algorithm. 
+    for c in 1: C # for each algorithm. 
         _algo = runnables[c]
         _l1 = _objs_list[c] = Vector{Vector}()
         _l2 = _grad_mapping_lists[c] = Vector{Vector}()
-        for j in 1:repeat # repeat with different initial guesses. 
+        @showprogress for j in 1:repeat # repeat with different initial guesses. 
             _objs, _gpm = perform_collect(
                 () -> (
                     _algo(initial_guess_generator())
@@ -60,10 +62,14 @@ function repeat_experiments_for(
         true_minimum = _estimated_min 
     end
     true_minimum = min(true_minimum, _estimated_min) - eps(Float64)
-    if normalize
-        _objs_list = [(_objs .- true_minimum)/(_objs[1] .- true_minimum) in _objs_list]
-    end
     for c in 1: C
+        if normalize
+            _objs_list[c] = [
+                (item .- true_minimum)/(item[1] - true_minimum) 
+                for 
+                item in _objs_list[c]
+            ]
+        end
         _to_return[c] = (
             _objs_list[c]|>zagged_arr_quantiles,
             _grad_mapping_lists[c]|>zagged_arr_quantiles
@@ -74,10 +80,11 @@ function repeat_experiments_for(
 end
 
 
+
+
 """
 Given an array of array of different length: `Array{Array}`.
 Get the 5 points statistics for all the kth element of all the arrays in the array. 
-
 
 """
 function zagged_arr_quantiles(
@@ -90,6 +97,5 @@ function zagged_arr_quantiles(
         _collected = [item[k] for item in zagged_arr if k <= length(item)]
         push!(_qstats_list, tuple(quantile(_collected, _q5)...))
     end
-    
     return _qstats_list
 end

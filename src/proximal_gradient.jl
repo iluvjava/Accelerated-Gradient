@@ -252,26 +252,29 @@ It tests on whether (L/2)|| x - T_L(x) ||^2 >= D_f(x, T_L(x)), and L = eta^(-1),
 function prox_grad(
     f::SmoothFxn, 
     g::NonsmoothFxn,
+    gradf_at_z::AbstractArray, 
     eta::Real, 
-    x::AbstractVector,
+    z::AbstractArray,
     line_search::Bool=false,
     tol=1e-10; 
     # named arguments
     lazy::Bool=false
 )::Union{Tuple{Real, AbstractVector}, Nothing}
-    
-    if line_search
-        d(y) = f(y) - f(x) - dot(grad(f, x), y - x) # <-- Bregman divergence of the smooth part. 
-        y = prox(g, eta, x - eta*grad(f, x))
-        dotted = dot(y - x, y - x)
+
+    _gradz = gradf_at_z # line search or not, you compute the gradient. 
+
+    if line_search    
+        d(y) = f(y) - f(z) - dot(_gradz, y - z) # <-- Bregman divergence of the smooth part. 
+        y = prox(g, eta, z - eta*_gradz)
+        dotted = dot(y - z, y - z)
         _breg_div = d(y)
         if lazy
             # lazy then just update the Lipschitz constant, and not the future iterates. 
             eta = 0.5*dotted/_breg_div
         else
             while eta >= tol && 2*eta*_breg_div > dotted 
-                y = prox(g, eta, x - eta*grad(f, x))
-                dotted = dot(y - x, y - x)
+                y = prox(g, eta, z - eta*_gradz)
+                dotted = dot(y - z, y - z)
                 _breg_div = d(y)
                 if min(dotted, _breg_div) <= eps(Float64)
                     break
@@ -288,7 +291,7 @@ function prox_grad(
         return nothing
     end
 
-    return eta, prox(g, eta, x - eta*grad(f, x))
+    return eta, prox(g, eta, z - eta*_gradz)
     
 end
 
@@ -337,7 +340,7 @@ function ista(
     for k in 1:max_itr
         xPre = x
         # Proximal gradient step. 
-        result = prox_grad(f, g, eta, xPre, lipschitz_line_search)
+        result = prox_grad(f, g, grad(f, xPre) ,eta, xPre, lipschitz_line_search)
         if isnothing(result) 
             flag = 2
             break # <-- Line search fucking search failed. 
@@ -410,7 +413,7 @@ function vfista(
     # iterates
     flag = 0
     for k = 1:max_itr
-        _, x⁺= prox_grad(f, g, η, y)
+        _, x⁺= prox_grad(f, g, grad(f, y), η, y)
         y⁺ = x⁺ + ((sqrt(κ) - 1)/(sqrt(κ) + 1))*(x⁺ - x)
         # results collect
         fxn_val, pgradMapVec = nothing, η^(-1)*(x⁺ - x)
@@ -466,7 +469,7 @@ function fista(
 
     for k = 1: N
         # x is updated here 
-        result = prox_grad(f, g, 1/L, y, lipschitz_line_search)
+        result = prox_grad(f, g, grad(f, y) ,1/L, y, lipschitz_line_search)
         if isnothing(result) 
             flag = 2
             break # <-- Line fucking search failed. 
@@ -549,7 +552,7 @@ function inexact_vfista(
     flag = 0
     for k = 1:max_itr
         # Proximal gradient on y. 
-        _returned = prox_grad(f, g, 1/L, y, lipschitz_line_search)
+        _returned = prox_grad(f, g, grad(f, y) ,1/L, y, lipschitz_line_search)
         if isnothing(_returned)
             flag = 2 
             break  # <-- Lipschitz line search failed. 
@@ -628,13 +631,12 @@ This function should only be used by `rwapg_vfista`.
 
 ## Returns
 If Lipschitz line search went through: `x⁺, y⁺, α⁺, L`; else: `Nothing`
-
-
 """
 function inner_rwapg(
     # Positional arguments. 
     f::SmoothFxn, 
     g::NonsmoothFxn,
+    grad_at_y::AbstractArray,
     x::AbstractArray, 
     y::AbstractArray, 
     alpha1::Number, 
@@ -657,7 +659,7 @@ function inner_rwapg(
     κ = mu/L
     α⁺ = (1/2)*(κ - r + sqrt((κ - r)^2 + 4r))
     θ = ρ*α*(1 - α)/(ρ*α^2 + α⁺)
-    returned = prox_grad(f, g, 1/L, y, lipschitz_line_search)
+    returned = prox_grad(f, g, grad_at_y ,1/L, y, lipschitz_line_search)
     if isnothing(returned)
         return nothing
     end
@@ -691,7 +693,7 @@ function rwapg(
     f::SmoothFxn, 
     g::NonsmoothFxn, 
     x0::AbstractArray, 
-    lip_const::Real,
+    lip_const::Real=1,
     scnvx_const::Real=0,
     rho::Real=1;
     # Named arguments set: Algorithm execuation
@@ -699,8 +701,7 @@ function rwapg(
     tol::Number=1e-8,
     max_itr::Int=2000, 
     lipschitz_line_search::Bool=false, 
-    estimate_scnvx_const::Bool=false, 
-    mono_restart::Bool=true
+    estimate_scnvx_const::Bool=false
 )
     # Initial execution parameters. 
     L = lip_const           # <-- Changing in loop. 
@@ -711,6 +712,8 @@ function rwapg(
     m = max_itr 
     x = x0                  # <-- Changing in loop. 
     y = x0                  # <-- Changing in loop. 
+    δf = grad(f, y)         # changing in loops
+    fy = f(y)               # changing in loops 
     _flag = 0
     # results collector initialization. 
     _initial_fxn = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
@@ -718,43 +721,41 @@ function rwapg(
     _sconvx_estimated = Vector{Number}(); push!(_sconvx_estimated, μ)
     initiate!(result_collector, x0, 1/L, _initial_fxn)
     for k = 1:m
-        # proximal gradient on y for x. 
-        returned = inner_rwapg(
-            f, g, x, y, α, ρ, μ, L, 
+        returned = inner_rwapg( # proximal gradient on y for x. 
+            f, g, δf, x, y, α, ρ, μ, L,
             lipschitz_line_search=lipschitz_line_search
         )
         if isnothing(returned) break; _flag = 2; end
         x⁺, y⁺, α⁺, L = returned
-        # s-convx const estimate. 
-        _new_running_fval = nothing 
-        if estimate_scnvx_const
+        # s-convx const estimate ===============================================
+        if estimate_scnvx_const || ive_fxnval_nxt_itr(result_collector)
             _new_running_fval = f(x⁺)
-            Df = _running_fval - _new_running_fval - dot(grad(f, x⁺), x - x⁺)
-            μ⁺ = min(max(2*Df/dot(x - x⁺, x - x⁺), 0), L)
+        end
+        if estimate_scnvx_const
+            # Df = _running_fval - _new_running_fval - dot(grad(f, x⁺), x - x⁺)
+            fy⁺ = f(y⁺)
+            Df = fy⁺ - fy - dot(δf, y⁺ - y)
+            μ⁺ = min(max(2*Df/dot(y - y⁺, y - y⁺), 0), L)
             μ = isnan(μ⁺) ? μ : (1/2)*μ⁺ + (1/2)*μ
             push!(_sconvx_estimated, μ)
         end
+        # ======================================================================
         _running_fval = _new_running_fval
-
-        # results collect
-        F⁺, G = nothing, L*(x⁺ - y)
+        F⁺, G = nothing, L*(x⁺ - y) # results collect
         if give_fxnval_nxt_itr(result_collector)
-            F⁺ = (isnothing(_running_fval) ? f(x⁺) : _running_fval) + g(x⁺)
+            F⁺ = _running_fval + g(x⁺)
         end
         register!(result_collector, x⁺, 1/L, G, F⁺)
-        
-        # termination criteria, updates. 
-        if L*norm(x⁺ - y) < ϵ
+        if L*norm(x⁺ - y) < ϵ # termination criteria, updates. 
             break # <-- Tolerance reached. 
         else
-            x = x⁺; y = y⁺; α = α⁺
+            x = x⁺; y = y⁺; α = α⁺; δf = grad(f, y⁺); fy = fy⁺
         end
         if k == m
             _flag = 1 # <-- Maximum iteration reached. 
         end
     end
-    # closing and return. 
-    result_collector.flag = _flag
+    result_collector.flag = _flag # closing and return. 
     result_collector.misc = _sconvx_estimated
     return result_collector
 end

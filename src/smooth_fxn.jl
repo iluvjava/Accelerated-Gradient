@@ -8,11 +8,10 @@ using Zygote  # for automatic differentiation.
 mutable struct SquareNormResidual <: SmoothFxn
     A::AbstractMatrix
     b::AbstractVector
-    ATA::AbstractMatrix # <-- For faster derivative evaluation. 
+    AT::AbstractMatrix # <-- For faster derivative evaluation. 
 
     function SquareNormResidual(A::AbstractMatrix, b::AbstractVector)
-        this = new(A, b)
-        this.ATA = A'*A
+        this = new(A, b, A')
         return this
     end
 
@@ -23,7 +22,8 @@ end
 Returns ‖Ax - b‖^2/2
 """
 function (this::SquareNormResidual)(x::AbstractVector{T}) where {T <: Number}
-    return dot(this.A*x - this.b, this.A*x - this.b)/2
+    Ax = this.A*x
+    return norm(Ax - this.b)^2/2
 end
 
 
@@ -34,9 +34,9 @@ Returns the gradient of the 2 norm residual function.
 function grad(this::SquareNormResidual, x::AbstractVector{T}) where {T <: Number}
     A = this.A; 
     b = this.b
-    ATA = this.ATA
+    AT = this.AT
     # A'*(A*x - b)
-    return ATA*x - A'*b
+    return AT*(A*x - b)
 end
 
 

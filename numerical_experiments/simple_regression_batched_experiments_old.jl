@@ -2,6 +2,7 @@ include("../src/abstract_types.jl")
 include("../src/non_smooth_fxns.jl")
 include("../src/smooth_fxn.jl")
 include("../src/proximal_gradient.jl")
+
 using Test, LinearAlgebra, Plots, SparseArrays, ProgressMeter, Statistics
 gr() # <-- Initialize GR backend. 
 
@@ -164,3 +165,5 @@ begin
     )
     fig1 |> display
 end
+
+
