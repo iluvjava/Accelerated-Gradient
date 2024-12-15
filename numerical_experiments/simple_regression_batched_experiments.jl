@@ -151,14 +151,16 @@ begin
         xlabel="Iteration Counter", 
         dpi=300
     )
-    fig1 |> display
+    
     LogMedians = [item[3] for item in Qstats2] .|> log2
     LogLowBnd = [item[1] for item in Qstats2] .|> log2
     LogUpper = [item[5] for item in Qstats2] .|> log2
     plot!(
+        fig1, 
         LogMedians; 
         ribbon = (LogMedians - LogLowBnd, LogUpper - LogMedians),
         label="Free R-WAPG", 
         linewidth=2
     )
+    fig1 |> display
 end

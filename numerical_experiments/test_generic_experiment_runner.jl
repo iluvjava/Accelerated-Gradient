@@ -62,7 +62,10 @@ end
     end
     
     function VisualizeResults()
-
+        # Get the fxn vals and gradient mapping for each algorithm. 
+        global ExperimentResultsObjs = [ExperimentResults[k][1] for k in 1:length(ExperimentResults)]
+        global ExperimentResultsGm = [ExperimentResults[k][2] for k in 1:length(ExperimentResults)]
+        
         return true
     end
     

@@ -64,7 +64,10 @@ function repeat_experiments_for(
         _objs_list = [(_objs .- true_minimum)/(_objs[1] .- true_minimum) in _objs_list]
     end
     for c in 1: C
-        _to_return[c] = (_objs_list[c], _grad_mapping_lists[c])
+        _to_return[c] = (
+            _objs_list[c]|>zagged_arr_quantiles,
+            _grad_mapping_lists[c]|>zagged_arr_quantiles
+        )
     end
 
     return _to_return
@@ -74,7 +77,19 @@ end
 """
 Given an array of array of different length: `Array{Array}`.
 Get the 5 points statistics for all the kth element of all the arrays in the array. 
-"""
-function zagged_arr_quantiles()
 
+
+"""
+function zagged_arr_quantiles(
+    zagged_arr::Vector{Vector}
+)::Vector{NTuple{5, Number}}
+    _inner_max_length = zagged_arr .|> length|>maximum
+    _qstats_list = Vector{NTuple{5, Number}}()
+    _q5 = [0, 0.25, 0.5, 0.75, 1]
+    for k in 1:_inner_max_length
+        _collected = [item[k] for item in zagged_arr if k <= length(item)]
+        push!(_qstats_list, tuple(quantile(_collected, _q5)...))
+    end
+    
+    return _qstats_list
 end
