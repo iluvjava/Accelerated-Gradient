@@ -216,5 +216,3 @@ VisualizeResults()
 # )
 # fig2 |> display
 # savefig(fig2, "lasso_sc_estimates_$N.png")
-
-

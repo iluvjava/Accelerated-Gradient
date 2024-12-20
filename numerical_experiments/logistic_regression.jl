@@ -6,7 +6,7 @@ include("../src/proximal_gradient.jl")
 
 
 using Test, LinearAlgebra, Plots, SparseArrays
-
+gr()
 
 function make_logistic_loss_problem(
     M::Integer, 
@@ -16,7 +16,7 @@ function make_logistic_loss_problem(
     A = abs.(randn(M, N))
     b = @. (cos(π*(0:1:M - 1)) + 1)/2
     f = LogitLoss(A, b, 1e-4)
-    g = MAbs(0.01)
+    g = MAbs(0.1)
     return f, g
 end
 
@@ -25,7 +25,7 @@ M, N,= 64, 128
 f, g = make_logistic_loss_problem(M, N)
 x0 = ones(N)
 MaxItr = 50000
-tol = 1e-8
+tol = 1e-6
 results1 = fista(
     f, 
     g, 
@@ -41,8 +41,6 @@ results2 = rwapg(
     f, 
     g, 
     x0, 
-    1, 
-    1/2;
     lipschitz_line_search=true, 
     estimate_scnvx_const=true,
     tol=tol, 
@@ -71,7 +69,7 @@ fig1 = plot(
     optimalityGap1[validIndx1], 
     yaxis=:log10,
     label="M-FISTA",
-    size=(1200, 800),
+    size=(600, 400),
     title="Logit Regression Experiment", 
 )
 
@@ -82,7 +80,7 @@ plot!(
     label="R-WAPG"
 )
 fig1 |> display
-savefig(fig1, "logistic_regression_loss.png")
+# savefig(fig1, "logistic_regression_loss.png")
 
 muEstimates = results2.misc
 validIndx = findall((x) -> x > 0, muEstimates)
@@ -94,6 +92,6 @@ fig2 = plot(
     title="Strong convexity index estimation, log_10"
 )
 display(fig2)
-savefig(fig2, "sc_estimates_logistic_loss.png")
+# savefig(fig2, "sc_estimates_logistic_loss.png")
 
 gradmapNorm = results1.gradient_mapping_norm

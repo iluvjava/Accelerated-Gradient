@@ -89,9 +89,14 @@ begin
 end
 
 
-# spectral radius 2d visualizations plot 
 begin
 
+    f = (x)-> 1/2(-x + sqrt(x^2 + 4x))
+    x = 1
+    for _ in 1:100
+        x = f(x)
+        x|>println
+    end
 
 end
 

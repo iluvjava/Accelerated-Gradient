@@ -216,6 +216,44 @@ function report_results(this::ResultsCollector)::Nothing
     return nothing
 end
 
+## =====================================================================================================================
+## STRUCTS THAT MODELS ALGORITHM BEHAVIORS 
+## =====================================================================================================================
+
+
+struct TerminationBy 
+    "1: By Gradient Mapping Norm. 2: By Function Value. 3: By the maximum of the two. "
+    code::Int
+    function TerminationBy(code_name::Int=1) return new(code_name) end
+end
+
+## Functions for getting termination token. 
+function TerminateByFunctionValue()::TerminationBy
+    return TerminateBy(2)
+end
+
+function TerminateByGradientMappingNorm()::TerminationBy
+    return TerminateBy(1)
+end
+
+function TerminateByBoth()::TerminationBy
+    return TerminateBy(3)
+end
+
+## Functions for checking the conditions. 
+function IsTerminatingByFunctionVal()::Bool
+    return this.code == 2
+end
+
+function IsTerminatingByGradiengMappingNomr()::Bool
+    return this.code == 1
+end
+
+function IsTerminatingByBoth()::Bool
+    return this.code == 3
+end
+
+
 
 
 
@@ -225,13 +263,13 @@ end
 
 
 
-function pgrad_map(
-    f::SmoothFxn, 
-    g::NonsmoothFxn, 
-    eta::Number, 
-    x::AbstractArray
-)::AbstractArray
-return x - prox_grad(f, g, eta, x) end
+# function pgrad_map(
+#     f::SmoothFxn, 
+#     g::NonsmoothFxn, 
+#     eta::Number, 
+#     x::AbstractArray
+# )::AbstractArray
+# return x - prox_grad(f, g, eta, x) end
 
 
 """
@@ -656,15 +694,16 @@ function inner_rwapg(
     r = rho*alpha1^2
     ρ = rho
     α = alpha1
-    κ = mu/L
-    α⁺ = (1/2)*(κ - r + sqrt((κ - r)^2 + 4r))
-    θ = ρ*α*(1 - α)/(ρ*α^2 + α⁺)
     returned = prox_grad(f, g, grad_at_y ,1/L, y, lipschitz_line_search)
     if isnothing(returned)
         return nothing
     end
     η, x⁺ = returned
     L = 1/η
+    mu = min(L, mu)
+    κ = mu/L
+    α⁺ = (1/2)*(κ - r + sqrt((κ - r)^2 + 4r))
+    θ = ρ*α*(1 - α)/(ρ*α^2 + α⁺)
     y⁺ = x⁺ + θ*(x⁺ - x)
     return x⁺, y⁺, α⁺, L
 end
@@ -736,7 +775,8 @@ function rwapg(
             fy⁺ = f(y⁺)
             Df = fy⁺ - fy - dot(δf, y⁺ - y)
             μ⁺ = min(max(2*Df/dot(y - y⁺, y - y⁺), 0), L)
-            μ = isnan(μ⁺) ? μ : (1/2)*μ⁺ + (1/2)*μ
+            # μ = (1/2)*μ⁺ + (1/2)*μ
+            μ = μ⁺
             push!(_sconvx_estimated, μ)
         end
         # ======================================================================
@@ -746,11 +786,13 @@ function rwapg(
             F⁺ = _running_fval + g(x⁺)
         end
         register!(result_collector, x⁺, 1/L, G, F⁺)
+        
         if L*norm(x⁺ - y) < ϵ # termination criteria, updates. 
             break # <-- Tolerance reached. 
         else
             x = x⁺; y = y⁺; α = α⁺; δf = grad(f, y⁺); fy = fy⁺
         end
+
         if k == m
             _flag = 1 # <-- Maximum iteration reached. 
         end
@@ -760,3 +802,8 @@ function rwapg(
     return result_collector
 end
 
+
+
+function rwapg_auto_diff()
+
+end
