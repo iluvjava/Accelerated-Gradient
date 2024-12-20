@@ -19,7 +19,7 @@ end
 
 # Prepare problem  parameters 
 tol = 1e-10
-max_itr = 5000
+max_itr = 10000
 N, μ, L = 256, 1e-5, 1
 f, g = make_quadratic_problem(N, μ, L)
 InitialGuessGuesser = () -> randn(N)

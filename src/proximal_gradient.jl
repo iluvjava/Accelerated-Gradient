@@ -397,7 +397,7 @@ function ista(
             fxn_val
         )
         # Termination criteria
-        if L*norm(x - xPre) < tol
+        if (1/eta)*norm(x - xPre) < tol
             break   # <-- Tolerance reached, flag: 0
         end
         # Maximum iteration exceeded. 
@@ -700,7 +700,6 @@ function inner_rwapg(
     end
     η, x⁺ = returned
     L = 1/η
-    mu = min(L, mu)
     κ = mu/L
     α⁺ = (1/2)*(κ - r + sqrt((κ - r)^2 + 4r))
     θ = ρ*α*(1 - α)/(ρ*α^2 + α⁺)
@@ -775,8 +774,7 @@ function rwapg(
             fy⁺ = f(y⁺)
             Df = fy⁺ - fy - dot(δf, y⁺ - y)
             μ⁺ = min(max(2*Df/dot(y - y⁺, y - y⁺), 0), L)
-            # μ = (1/2)*μ⁺ + (1/2)*μ
-            μ = μ⁺
+            μ = (1/2)*μ⁺ + (1/2)*μ
             push!(_sconvx_estimated, μ)
         end
         # ======================================================================
@@ -803,7 +801,10 @@ function rwapg(
 end
 
 
-
+"""
+A rwapg method specialized to smooth + non-smooth function where the 
+smooth part of the function supports automatic differentiation. 
+"""
 function rwapg_auto_diff()
 
 end
