@@ -75,7 +75,7 @@ function VisualizeResults()
         Medians, 
         ribbon=(Medians .- Low, High .- Medians),
         label="V-FISTA", 
-        ylabel="Log2 Normalized Optimality Gap",
+        ylabel="Log2 Normalized Optimality Gap Statistics",
         xlabel="Iteration Count",
         linewidth=2
     )

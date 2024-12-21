@@ -90,14 +90,10 @@ end
 
 
 begin
-
-    f = (x)-> 1/2(-x + sqrt(x^2 + 4x))
-    x = 1
-    for _ in 1:100
-        x = f(x)
-        x|>println
-    end
-
+    q = 1/10
+    r_vec = LinRange(sqrt(q), sqrt(1/q), 1000)|>collect
+    y_vec = max.(@.(1 - 1/r_vec*sqrt(q)), @.(1 - r_vec*sqrt(q)))
+    plot(r_vec, y_vec)
 end
 
 
