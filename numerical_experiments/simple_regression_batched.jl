@@ -77,6 +77,7 @@ function VisualizeResults()
         label="V-FISTA", 
         ylabel="Log2 Normalized Optimality Gap Statistics",
         xlabel="Iteration Count",
+        title="Statistics of Batched simple regression", 
         linewidth=2
     )
     Medians = [qstats[3] for qstats in ExperimentResultsObjs[2]].|>log2
@@ -100,6 +101,7 @@ function VisualizeResults()
         linewidth=2
     )
     fig1|>display
+    savefig(fig1, "simple_regression_batched-$N.png")
     return nothing
 end
 

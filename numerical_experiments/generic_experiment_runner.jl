@@ -6,6 +6,16 @@ using Test, LinearAlgebra, Plots, SparseArrays, ProgressMeter, Statistics
 gr() 
 
 
+mutable struct ExperimentResultsManager
+    raw_results::Vector
+    stats::Vector
+
+    function ExperimentResultsManager(raw_results::Vector)
+        this = new()
+        return this
+    end
+end
+
 
 """
 Perform the runner and collect the result out of it. 
@@ -24,11 +34,12 @@ end
 Repeat `perform_one_experiment_on` for different initial gusses and collect statistics on objective values 
 of the function at each iteration of the algorithm and return the statistics information. 
 
-## Positional Argument 
+## Positional Argument
 - `initial_guess_generator::Base.Callable`:
 - `runnables::Vector{Base.Callable}`:
 - `true_minimum::Union{Real, Nothing}=nothing`:
 - `repeat_for=50`:
+- `normalize::Bool=true`: 
 """
 function repeat_experiments_for(  
     initial_guess_generator::Function, 
@@ -75,10 +86,8 @@ function repeat_experiments_for(
             _grad_mapping_lists[c]|>zagged_arr_quantiles
         )
     end
-
     return _to_return
 end
-
 
 
 

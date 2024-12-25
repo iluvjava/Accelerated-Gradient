@@ -108,6 +108,7 @@ function VisualizeResults()
         linewidth=3
     )
     fig1|>display
+    savefig(fig1, "lasso_batched_statistics_$M-$N.png")
     return nothing
 end
 
