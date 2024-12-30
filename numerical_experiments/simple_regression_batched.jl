@@ -20,7 +20,7 @@ end
 # Prepare problem  parameters 
 tol = 1e-10
 max_itr = 10000
-N, μ, L = 256, 1e-5, 1
+N, μ, L = 1024, 1e-5, 1
 f, g = make_quadratic_problem(N, μ, L)
 InitialGuessGuesser = () -> randn(N)
 # Package algorithm as runnables for testing. 
@@ -78,7 +78,8 @@ function VisualizeResults()
         ylabel="Log2 Normalized Optimality Gap Statistics",
         xlabel="Iteration Count",
         title="Statistics of Batched simple regression", 
-        linewidth=2
+        linewidth=2, 
+        dpi=330
     )
     Medians = [qstats[3] for qstats in ExperimentResultsObjs[2]].|>log2
     Low = [qstats[1] for qstats in ExperimentResultsObjs[2]].|>log2

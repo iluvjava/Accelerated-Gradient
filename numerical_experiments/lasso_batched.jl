@@ -84,7 +84,8 @@ function VisualizeResults()
         xlabel="Iteration Count",
         linewidth=3, 
         style=:dash, 
-        size=(600, 400),
+        dpi=300,
+        size=(600, 400)
     )
     Medians = [qstats[3] for qstats in ExperimentResultsObjs[2]].|>log2
     Low = [qstats[1] for qstats in ExperimentResultsObjs[2]].|>log2.|> ((x) -> max(x, -54))
@@ -116,105 +117,3 @@ end
 RunExperiments()
 VisualizeResults()
 
-
-# results1 = vfista(
-#     f, 
-#     g, 
-#     x0, 
-#     L, 
-#     μ, 
-#     tol=tol, 
-#     max_itr=MaxItr
-# )
-
-# @info "VFISTA DONE"
-# results2 = rwapg(
-#     f, 
-#     g, 
-#     x0, 
-#     lipschitz_line_search=true, 
-#     estimate_scnvx_const=true,
-#     tol=tol, 
-#     max_itr=MaxItr
-# )
-
-# @info "R-WAPG DONE"
-# results3 = fista(
-#     f, 
-#     g, 
-#     x0, 
-#     tol=tol, 
-#     max_itr=MaxItr, 
-#     lipschitz_constant=L, 
-#     lipschitz_line_search=false, 
-#     mono_restart=true, 
-# )
-# @info "M-FISTA DONE"
-
-# report_results(results1)
-# report_results(results2)
-# report_results(results3)
-
-# fxnVal1 = objectives(results1)
-# fxnVal2 = objectives(results2)
-# fxnVal3 = objectives(results3)
-# fxnMin = min(minimum(fxnVal1), minimum(fxnVal2), minimum(fxnVal3))
-# # fxnMin = 0
-
-# optimalityGap1 = @. fxnVal1 - fxnMin
-# optimalityGap1 = replace((x) -> max(x, eps(Float64)), optimalityGap1)
-# optimalityGap2 = @. fxnVal2 - fxnMin
-# optimalityGap2 = replace((x) -> max(x, eps(Float64)), optimalityGap2)
-# optimalityGap3 = @. fxnVal3 - fxnMin
-# optimalityGap3 = replace((x) -> max(x, eps(Float64)), optimalityGap3)
-
-# validIndx1 = findall((x) -> (x > 0), optimalityGap1)
-# validIndx2 = findall((x) -> (x > 0), optimalityGap2)
-# validIndx3 = findall((x) -> (x > 0), optimalityGap3)
-
-
-# fig1 = plot(
-#     validIndx1,
-#     optimalityGap1[validIndx1], 
-#     yaxis=:log2,
-#     label="V-FISTA",
-#     title="LASSO N=$N", 
-#     size=(600, 400), 
-#     linewidth=3, 
-#     dpi=300, 
-#     ylabel="Optimality Gap", 
-#     xlabel="Iteration"
-# )
-# plot!(
-#     fig1,
-#     validIndx3,
-#     optimalityGap3[validIndx3], 
-#     label="M-FISTA",
-#     linewidth=3, 
-# )
-# plot!(
-#     fig1, 
-#     validIndx2,
-#     optimalityGap2[validIndx2], 
-#     label="FREE RWAPG", 
-#     linewidth=3
-# )
-
-# fig1 |> display
-# savefig(fig1, "lasso_loss_$N.png")
-
-
-# muEstimates = results2.misc
-# validIndx = findall((x) -> x > 0, muEstimates)
-# fig2 = plot(
-#     validIndx,
-#     muEstimates[validIndx], 
-#     yaxis=:log10, 
-#     size=(600, 400),
-#     title="μ_k Estimteas N=$N",
-#     ylabel="μ_k", 
-#     xlabel="Iteration", 
-#     linewidth=3
-# )
-# fig2 |> display
-# savefig(fig2, "lasso_sc_estimates_$N.png")
