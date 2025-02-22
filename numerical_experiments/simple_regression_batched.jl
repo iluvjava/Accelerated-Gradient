@@ -1,6 +1,6 @@
 
 include("../numerical_experiments/generic_experiment_runner.jl")
-using Test
+using Test, LaTeXStrings
 
 
 function make_quadratic_problem(
@@ -20,7 +20,7 @@ end
 # Prepare problem  parameters 
 tol = 1e-10
 max_itr = 10000
-N, μ, L = 1024, 1e-5, 1
+N, μ, L = 256, 1e-5, 1
 f, g = make_quadratic_problem(N, μ, L)
 InitialGuessGuesser = () -> randn(N)
 # Package algorithm as runnables for testing. 
@@ -75,9 +75,9 @@ function VisualizeResults()
         Medians, 
         ribbon=(Medians .- Low, High .- Medians),
         label="V-FISTA", 
-        ylabel="Log2 Normalized Optimality Gap Statistics",
-        xlabel="Iteration Count",
-        title="Statistics of Batched simple regression", 
+        ylabel="Min, Max, Medium of \$\\delta_k\$",
+        xlabel=L"k",
+        title="\$\\delta_k\$ Statistics of Batched simple regression", 
         linewidth=2, 
         dpi=330
     )

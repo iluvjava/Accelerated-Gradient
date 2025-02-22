@@ -23,7 +23,7 @@ function make_lasso_problem(
     return f, g, μ, L
 end
 
-M, N = 64, 256
+M, N = 64,128
 f, g, μ, L = make_lasso_problem(M, N)
 x0 = randn(N)
 MaxItr = 8000
@@ -80,8 +80,8 @@ function VisualizeResults()
         ribbon=(Medians .- Low, High .- Medians),
         label="V-FISTA", 
         title="Batched LASSO Experiments Statistics",
-        ylabel="Normalized Optimality Gap Stats",
-        xlabel="Iteration Count",
+        ylabel="Min, Max, Medium of \$\\delta_k\$",
+        xlabel=L"k",
         linewidth=3, 
         style=:dash, 
         dpi=300,

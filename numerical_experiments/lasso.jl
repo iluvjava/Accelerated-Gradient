@@ -91,14 +91,15 @@ validIndx3 = findall((x) -> (x > 0), optimalityGap3)
 fig1 = plot(
     validIndx1,
     optimalityGap1[validIndx1], 
-    yaxis=:log2,
+    yaxis=:log10,
     label="V-FISTA",
-    title="LASSO N=$N", 
+    title="LASSO Experiment Optimality Gap", 
     size=(600, 400), 
     linewidth=3, 
     dpi=300, 
-    ylabel="Optimality Gap", 
-    xlabel="Iteration"
+    ylabel="\n"*L"F(x_k) - F^*", 
+    xlabel="k", 
+    legend=:bottomleft
 )
 plot!(
     fig1,
@@ -126,10 +127,11 @@ fig2 = plot(
     muEstimates[validIndx], 
     yaxis=:log10, 
     size=(600, 400),
-    title="μ_k Estimteas N=$N",
-    ylabel="μ_k", 
-    xlabel="Iteration", 
-    linewidth=3
+    title="\n\$μ_k\$ Estimteas N=$N",
+    ylabel=L"μ_k", 
+    xlabel=L"k", 
+    linewidth=3, 
+    legend=:none
 )
 fig2 |> display
 savefig(fig2, "lasso_sc_estimates_$N.png")

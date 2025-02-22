@@ -4,7 +4,7 @@ include("../src/smooth_fxn.jl")
 include("../src/proximal_gradient.jl")
 
 
-using Test, LinearAlgebra, Plots, SparseArrays
+using Test, LinearAlgebra, Plots, SparseArrays, LaTeXStrings
 
 
 function make_quadratic_problem(
@@ -67,12 +67,12 @@ optimalityGap2 = replace((x) -> max(x, eps(Float64)), optimalityGap2)
 fig1 = plot(
     optimalityGap1, 
     label="V-FISTA",
-    title="Simple regression (N=$N)", 
+    title="Simple Regression (N=$N)", 
     yaxis=:log10, 
     size=(600, 400), 
     linewidth=2, 
-    ylabel="Optimality Gap", 
-    xlabel="Iteration Counter", 
+    ylabel="\n"*L"F(x_k) - F^*", 
+    xlabel=L"k", 
     dpi=300
 )
 plot!(fig1, optimalityGap2, label="R-WAPG", linewidth=3)
@@ -84,11 +84,12 @@ muEstimates = results2.misc
 fig2 = plot(
     muEstimates, 
     yaxis=:log10, 
-    title="Simple Regression μ_k Estimates (N=$N)", 
+    title="\n"*L"Simple Regression $μ_k$ Estimates", 
     size=(600, 400), 
     linewidth=2, 
-    ylabel="μ Estimates", 
-    xlabel="Iteration Counter", 
+    legend=:none,
+    ylabel=L"μ_k", 
+    xlabel=L"k", 
     dpi=300
 )
 display(fig2)
