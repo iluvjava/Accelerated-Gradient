@@ -20,13 +20,13 @@ function make_quadratic_problem(
     return f, g
 end
 
-N, μ, L = 1024, 1e-6, 1
+N, μ, L = 1024, 1e-5, 1
 f, g = make_quadratic_problem(N, μ, L)
 # x0 = LinRange(0, L, N) |> collect
 x0 = ones(N)
 
 MaxItr = 10000
-tol = 1e-8
+tol = 1e-10
 
 results1 = vfista(
     f, 
@@ -49,11 +49,23 @@ results2 = rwapg(
     max_itr=MaxItr
 )
 
+results3 = fista(
+    f, 
+    g, 
+    x0, 
+    lipschitz_line_search=true, 
+    tol=tol, 
+    max_itr=MaxItr, 
+    mono_restart=true
+)
+
 report_results(results1)
 report_results(results2)
+report_results(results3)
 
 fxnVal1 = objectives(results1)
 fxnVal2 = objectives(results2)
+fxnVal3 = objectives(results3)
 
 fxnMin = 0 # we already know the fmin. 
 
@@ -63,6 +75,9 @@ optimalityGap1 = replace((x) -> max(x, eps(Float64)), optimalityGap1)
 optimalityGap2 = @. fxnVal2 - fxnMin
 optimalityGap2 = replace((x) -> max(x, eps(Float64)), optimalityGap2)
 
+optimalityGap3 = @. fxnVal3 - fxnMin
+optimalityGap3 = replace((x) -> max(x, eps(Float64)), optimalityGap3)
+
 
 fig1 = plot(
     optimalityGap1, 
@@ -70,12 +85,17 @@ fig1 = plot(
     title="Simple Regression (N=$N)", 
     yaxis=:log10, 
     size=(600, 400), 
-    linewidth=2, 
+    line=(3, :dot),
     ylabel="\n"*L"F(x_k) - F^*", 
     xlabel=L"k", 
-    dpi=300
+    dpi=300,
 )
-plot!(fig1, optimalityGap2, label="R-WAPG", linewidth=3)
+plot!(
+    fig1, optimalityGap2, label="R-WAPG", line=(3, :dash),
+)
+plot!(
+    fig1, optimalityGap3, label="M-FISTA", linewidth=3
+)
 fig1 |> display
 
 savefig(fig1, "simple_regression_loss_$N.png")

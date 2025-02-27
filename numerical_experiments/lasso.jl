@@ -95,7 +95,7 @@ fig1 = plot(
     label="V-FISTA",
     title="LASSO Experiment Optimality Gap", 
     size=(600, 400), 
-    linewidth=3, 
+    line=(3, :dot), 
     dpi=300, 
     ylabel="\n"*L"F(x_k) - F^*", 
     xlabel="k", 
@@ -106,7 +106,7 @@ plot!(
     validIndx3,
     optimalityGap3[validIndx3], 
     label="M-FISTA",
-    linewidth=3, 
+    line=(3, :dash), 
 )
 plot!(
     fig1, 

@@ -20,7 +20,7 @@ end
 # Prepare problem  parameters 
 tol = 1e-10
 max_itr = 10000
-N, μ, L = 256, 1e-5, 1
+N, μ, L = 1024, 1e-5, 1
 f, g = make_quadratic_problem(N, μ, L)
 InitialGuessGuesser = () -> randn(N)
 # Package algorithm as runnables for testing. 
@@ -78,8 +78,9 @@ function VisualizeResults()
         ylabel="Min, Max, Medium of \$\\delta_k\$",
         xlabel=L"k",
         title="\$\\delta_k\$ Statistics of Batched simple regression", 
-        linewidth=2, 
-        dpi=330
+        line=(3, :dash), 
+        dpi=330, 
+        
     )
     Medians = [qstats[3] for qstats in ExperimentResultsObjs[2]].|>log2
     Low = [qstats[1] for qstats in ExperimentResultsObjs[2]].|>log2
@@ -89,7 +90,7 @@ function VisualizeResults()
         Medians, 
         ribbon=(Medians .- Low, High .- Medians), 
         label="M-FISTA", 
-        linewidth=2
+        line=(3, :dot), 
     )
     Medians = [qstats[3] for qstats in ExperimentResultsObjs[3]].|>log2
     Low = [qstats[1] for qstats in ExperimentResultsObjs[3]].|>log2
@@ -99,7 +100,7 @@ function VisualizeResults()
         Medians, 
         ribbon=(Medians .- Low, High .- Medians), 
         label="Free R-WAPG", 
-        linewidth=2
+        linewidth=3
     )
     fig1|>display
     savefig(fig1, "simple_regression_batched-$N.png")
