@@ -87,7 +87,7 @@ validIndx1 = findall((x) -> (x > 0), optimalityGap1)
 validIndx2 = findall((x) -> (x > 0), optimalityGap2)
 validIndx3 = findall((x) -> (x > 0), optimalityGap3)
 
-
+### FIRST PLOT CONVERGENCE RATES ===============================================
 fig1 = plot(
     validIndx1,
     optimalityGap1[validIndx1], 
@@ -120,6 +120,7 @@ fig1 |> display
 savefig(fig1, "lasso_loss_$N.png")
 
 
+### SECOND PLOT ================================================================
 muEstimates = results2.misc
 validIndx = findall((x) -> x > 0, muEstimates)
 fig2 = plot(
@@ -135,3 +136,21 @@ fig2 = plot(
 )
 fig2 |> display
 savefig(fig2, "lasso_sc_estimates_$N.png")
+
+
+### THIRD PLOT =================================================================
+rwapgUpperBnd = results2.rwapg_upperbnd
+fig3 = plot(
+    rwapgUpperBnd, 
+    label="R-WAPG Theoretical UpperBnd",
+    title="LASSO R-WAPG Upper Bound (N=$N)", 
+    yaxis=:log10, 
+    size=(700, 400), 
+    line=(3, :dot),
+    ylabel="\n\n"*L"\prod_{i = 0}^{k - 1}\max\left(1 - \alpha_{i + 1}, \frac{\alpha_{k + 1}^2}{\alpha_k^2}\right)", 
+    xlabel=L"k", 
+    dpi=300,
+)
+fig3|>display
+savefig(fig3, "lasso_rwapg_upperbnd_$N.png")
+

@@ -23,12 +23,13 @@ results and using with the dictionary data structure.
 """
 mutable struct ResultsCollector
 
-    gradient_mappings::Dict{Int, AbstractArray} # collect sparsely 
     gradient_mapping_norm::Vector{Real}         # always collect
-    objective_vals::Dict{Int, Real}             # collected sparsely
-    solns::Dict{Int, AbstractArray}             # collect sparsely 
     soln::AbstractArray                         # the solution of current iteration. 
     step_sizes::Vector{Real}                    # always collect. 
+    
+    gradient_mappings::Dict{Int, AbstractArray} # collect sparsely 
+    objective_vals::Dict{Int, Real}             # collected sparsely
+    solns::Dict{Int, AbstractArray}             # collect sparsely 
     
     flag::Int                                    # Status of terminations of the algorithm. 
     collection_interval::Int                    # specified on initializations. 
@@ -38,6 +39,7 @@ mutable struct ResultsCollector
     collect_grad_map::Bool                      # whether to collect gradient mapping periodically. 
 
     misc::Any                                   # whatever the client side wants, Initialized to be undefined. 
+    rwapg_upperbnd::Vector{Real}
 
     
     """
@@ -50,15 +52,16 @@ mutable struct ResultsCollector
         collect_grad_map::Bool=false, 
     )
         this = new()
-        this.gradient_mappings = Dict{Int, AbstractArray}()
+        this.step_sizes = Vector{Real}()
         this.gradient_mapping_norm = Vector{Real}()
+
+        this.gradient_mappings = Dict{Int, AbstractArray}()
         this.objective_vals = Dict{Int, Real}()
         this.solns = Dict{Int, AbstractArray}()
-        this.step_sizes = Vector{Real}()
+        
         this.flag = -1
         this.itr_counter = -1
         this.collection_interval = collection_interval
-
         this.collect_fxn_val = collect_fxn_val
         this.collect_grad_map = collect_grad_map
        return this
@@ -750,13 +753,15 @@ function rwapg(
     m = max_itr 
     x = x0                  # <-- Changing in loop. 
     y = x0                  # <-- Changing in loop. 
-    δf = grad(f, y)         # changing in loops
-    fy = f(y)               # changing in loops 
+    δf = grad(f, y)         # <-- changing in loops
+    fy = f(y)               # <-- changing in loops 
     _flag = 0
     # results collector initialization. 
     _initial_fxn = collect_fxn_vals(result_collector) ? f(x) + g(y) : nothing
     _running_fval = estimate_scnvx_const ? _initial_fxn : nothing  # <--- changing in loop. 
     _sconvx_estimated = Vector{Number}(); push!(_sconvx_estimated, μ)
+    _rwapg_upperbnd = Vector{Number}(); push!(_rwapg_upperbnd, α)
+
     initiate!(result_collector, x0, 1/L, _initial_fxn)
     for k = 1:m
         returned = inner_rwapg( # proximal gradient on y for x. 
@@ -777,8 +782,12 @@ function rwapg(
             μ = (1/2)*μ⁺ + (1/2)*μ
             push!(_sconvx_estimated, μ)
         end
-        # ======================================================================
+        # examing results ======================================================
         _running_fval = _new_running_fval
+        _rwapg_upperbnd = push!(
+            _rwapg_upperbnd, 
+            max(1 - α, (α⁺/α)^2)*_rwapg_upperbnd[end]
+        )
         F⁺, G = nothing, L*(x⁺ - y) # results collect
         if give_fxnval_nxt_itr(result_collector)
             F⁺ = _running_fval + g(x⁺)
@@ -792,11 +801,12 @@ function rwapg(
         end
 
         if k == m
-            _flag = 1 # <-- Maximum iteration reached. 
+            _flag = 1 # <-- Falg maximum iteration reached. 
         end
     end
     result_collector.flag = _flag # closing and return. 
     result_collector.misc = _sconvx_estimated
+    result_collector.rwapg_upperbnd = _rwapg_upperbnd
     return result_collector
 end
 

@@ -78,7 +78,7 @@ optimalityGap2 = replace((x) -> max(x, eps(Float64)), optimalityGap2)
 optimalityGap3 = @. fxnVal3 - fxnMin
 optimalityGap3 = replace((x) -> max(x, eps(Float64)), optimalityGap3)
 
-
+### PLOTTING THE FIRST PLOT. 
 fig1 = plot(
     optimalityGap1, 
     label="V-FISTA",
@@ -100,6 +100,7 @@ fig1 |> display
 
 savefig(fig1, "simple_regression_loss_$N.png")
 
+### PLOTTING THE SECOND PLOT
 muEstimates = results2.misc
 fig2 = plot(
     muEstimates, 
@@ -115,3 +116,18 @@ fig2 = plot(
 display(fig2)
 savefig(fig2, "simple_regression_loss_sc_estimates_$N.png")
 
+### PLOTTING THE THIRD PLOT
+rwapgUpperBnd = results2.rwapg_upperbnd
+fig3 = plot(
+    rwapgUpperBnd, 
+    label="R-WAPG Theoretical UpperBnd",
+    title="Simple Regression R-WAPG Upper Bound (N=$N)", 
+    yaxis=:log10, 
+    size=(700, 400), 
+    line=(3, :dot),
+    ylabel="\n\n"*L"\prod_{i = 0}^{k - 1}\max\left(1 - \alpha_{i + 1}, \frac{\alpha_{k + 1}^2}{\alpha_k^2}\right)", 
+    xlabel=L"k", 
+    dpi=300,
+)
+fig3 |> display
+savefig(fig3, "simple_regression_rwapg_upperbnd_$N.png")
