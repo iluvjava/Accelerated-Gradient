@@ -20,7 +20,7 @@ end
 # Prepare problem  parameters 
 tol = 1e-10
 max_itr = 10000
-N, μ, L = 1024, 1e-5, 1
+N, μ, L = 256, 1e-5, 1
 f, g = make_quadratic_problem(N, μ, L)
 InitialGuessGuesser = () -> randn(N)
 # Package algorithm as runnables for testing. 
@@ -42,17 +42,17 @@ RWAPG = (x) -> rwapg(
     tol=tol, 
     max_itr=max_itr
 )
-MFISTA = (x) -> fista(
+FISTA = (x) -> fista(
     f, 
     g, 
     x, 
     lipschitz_line_search=true, 
     tol=tol, 
     max_itr=max_itr, 
-    mono_restart=true
+    mono_restart=false
 )
 
-Algos = [VFISTA, MFISTA, RWAPG]
+Algos = [VFISTA, FISTA, RWAPG]
 
 function RunExperiments()
     global ExperimentResults = repeat_experiments_for(
@@ -77,7 +77,7 @@ function VisualizeResults()
         label="V-FISTA", 
         ylabel="Min, Max, Medium of \$\\delta_k\$",
         xlabel=L"k",
-        title="\$\\delta_k\$ Statistics of Batched simple regression", 
+        title="\$\\delta_k\$ Statistics of Batched Simple Regression", 
         line=(3, :dash), 
         dpi=330, 
         
@@ -89,7 +89,7 @@ function VisualizeResults()
         fig1, 
         Medians, 
         ribbon=(Medians .- Low, High .- Medians), 
-        label="M-FISTA", 
+        label="FISTA", 
         line=(3, :dot), 
     )
     Medians = [qstats[3] for qstats in ExperimentResultsObjs[3]].|>log2

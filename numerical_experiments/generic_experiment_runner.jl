@@ -70,9 +70,9 @@ function repeat_experiments_for(
         end
     end
     if isnothing(true_minimum)
-        true_minimum = _estimated_min 
+        true_minimum = _estimated_min
     end
-    true_minimum = min(true_minimum, _estimated_min) - eps(Float64)
+    true_minimum = min(true_minimum, _estimated_min)*(1 - 2*eps(Float64))
     for c in 1: C
         if normalize
             _objs_list[c] = [

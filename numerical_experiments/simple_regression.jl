@@ -56,7 +56,7 @@ results3 = fista(
     lipschitz_line_search=true, 
     tol=tol, 
     max_itr=MaxItr, 
-    mono_restart=true
+    mono_restart=false
 )
 
 report_results(results1)
@@ -94,7 +94,7 @@ plot!(
     fig1, optimalityGap2, label="R-WAPG", line=(3, :dash),
 )
 plot!(
-    fig1, optimalityGap3, label="M-FISTA", linewidth=3
+    fig1, optimalityGap3, label="FISTA", linewidth=3
 )
 fig1 |> display
 

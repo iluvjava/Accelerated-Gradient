@@ -704,8 +704,10 @@ function inner_rwapg(
     η, x⁺ = returned
     L = 1/η
     κ = mu/L
+    
     α⁺ = (1/2)*(κ - r + sqrt((κ - r)^2 + 4r))
-    θ = ρ*α*(1 - α)/(ρ*α^2 + α⁺)
+    # θ = ρ*α*(1 - α)/(ρ*α^2 + α⁺)
+    θ = α⁺*(1/α - 1)
     y⁺ = x⁺ + θ*(x⁺ - x)
     return x⁺, y⁺, α⁺, L
 end
@@ -797,7 +799,11 @@ function rwapg(
         if L*norm(x⁺ - y) < ϵ # termination criteria, updates. 
             break # <-- Tolerance reached. 
         else
-            x = x⁺; y = y⁺; α = α⁺; δf = grad(f, y⁺); fy = fy⁺
+            x = x⁺
+            y = y⁺ 
+            α = α⁺
+            δf = grad(f, y⁺)
+            fy = fy⁺
         end
 
         if k == m

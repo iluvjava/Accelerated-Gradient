@@ -18,7 +18,7 @@ function make_lasso_problem(
     x⁺ = cos.((π/2)*(0:1:N - 1))
     b = A*x⁺
     f = SquareNormResidual(A, b)
-    g = MAbs(0.3)
+    g = MAbs(0.1)
     μ = 1/norm(inv(A'*A))
     L = norm(A'*A)
     return f, g, μ, L
@@ -28,7 +28,7 @@ M, N = 64, 256
 f, g, μ, L = make_lasso_problem(M, N)
 println("Parameters out. μ = $μ, L = $L")
 x0 = randn(N)
-MaxItr = 8000
+MaxItr = 12000
 tol = 1e-6
 InitialGuessGuesser = () -> randn(N)
 
@@ -62,9 +62,9 @@ results3 = fista(
     max_itr=MaxItr, 
     lipschitz_constant=L, 
     lipschitz_line_search=false, 
-    mono_restart=true, 
+    mono_restart=false, 
 )
-@info "M-FISTA DONE"
+@info "FISTA DONE"
 
 report_results(results1)
 report_results(results2)
@@ -93,7 +93,7 @@ fig1 = plot(
     optimalityGap1[validIndx1], 
     yaxis=:log10,
     label="V-FISTA",
-    title="LASSO Experiment Optimality Gap", 
+    title="LASSO Experiment Optimality Gap N = $N", 
     size=(600, 400), 
     line=(3, :dot), 
     dpi=300, 
@@ -105,7 +105,7 @@ plot!(
     fig1,
     validIndx3,
     optimalityGap3[validIndx3], 
-    label="M-FISTA",
+    label="FISTA",
     line=(3, :dash), 
 )
 plot!(

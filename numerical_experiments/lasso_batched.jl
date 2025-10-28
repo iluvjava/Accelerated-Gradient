@@ -1,32 +1,32 @@
-include("../src/abstract_types.jl")
-include("../src/non_smooth_fxns.jl")
-include("../src/smooth_fxn.jl")
-include("../src/proximal_gradient.jl")
+# include("../src/abstract_types.jl")
+# include("../src/non_smooth_fxns.jl")
+# include("../src/smooth_fxn.jl")
+# include("../src/proximal_gradient.jl")
 include("../numerical_experiments/generic_experiment_runner.jl")
 
-using Test, LinearAlgebra, Plots, SparseArrays, Random
+using Test, LinearAlgebra, Plots, SparseArrays, Random, LaTeXStrings
 # pgfplotsx()
 
 function make_lasso_problem(
     M::Integer,
     N::Integer, 
-    seed::Integer=1
+    seed::Integer=3
 )::Tuple{SmoothFxn, NonsmoothFxn, Real, Real}
     Random.seed!(seed)
     A = randn(M, N)
     x⁺ = cos.((π/2)*(0:1:N - 1))
     b = A*x⁺
     f = SquareNormResidual(A, b)
-    g = MAbs(0.3)
+    g = MAbs(0.1)
     μ = 1/norm(inv(A'*A))
     L = norm(A'*A)
     return f, g, μ, L
 end
 
-M, N = 64,128
+M, N = 64,256
 f, g, μ, L = make_lasso_problem(M, N)
-x0 = randn(N)
-MaxItr = 8000
+# x0 = randn(N) + ones(N)
+MaxItr = 24000
 tol = 1e-6
 InitialGuessGuesser = () -> randn(N)
 VFISTA = (x) -> vfista(
@@ -47,20 +47,20 @@ RWAPG = (x) -> rwapg(
     tol=tol, 
     max_itr=MaxItr
 )
-MFISTA = (x) -> fista(
+FISTA = (x) -> fista(
     f, 
     g, 
     x, 
     lipschitz_line_search=true, 
     tol=tol, 
     max_itr=MaxItr, 
-    mono_restart=true
+    mono_restart=false
 )
-Algos = [VFISTA, MFISTA, RWAPG]
+Algos = [VFISTA, FISTA, RWAPG]
 
 function RunExperiments()
     global ExperimentResults = repeat_experiments_for(
-        InitialGuessGuesser, Algos; repeat=30
+        InitialGuessGuesser, Algos; repeat=20
     )
     return nothing
 end
@@ -79,7 +79,7 @@ function VisualizeResults()
         Medians, 
         ribbon=(Medians .- Low, High .- Medians),
         label="V-FISTA", 
-        title="Batched LASSO Experiments Statistics",
+        title="Batched LASSO Experiments Statistics (N=$N)",
         ylabel="Min, Max, Medium of \$\\delta_k\$",
         xlabel=L"k",
         linewidth=3, 
@@ -94,12 +94,12 @@ function VisualizeResults()
         fig1, 
         Medians, 
         ribbon=(Medians .- Low, High .- Medians), 
-        label="M-FISTA", 
+        label="FISTA", 
         linewidth=3, 
         style=:dot
     )
-    Medians = [qstats[3] for qstats in ExperimentResultsObjs[3]].|>log2
     Low = [qstats[1] for qstats in ExperimentResultsObjs[3]].|>log2
+    Medians = [qstats[3] for qstats in ExperimentResultsObjs[3]].|>log2
     High = [qstats[5] for qstats in ExperimentResultsObjs[3]].|>log2
     plot!(
         fig1, 
